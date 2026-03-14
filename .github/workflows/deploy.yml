@@ -1,0 +1,72 @@
+name: Deploy to Google Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+env:
+  PROJECT_ID: CLTECCCT
+  REGION: us-central1 # Update if needed
+  REPO_NAME: webexccconfig-mcp
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: "read"
+      id-token: "write" # Required for Workload Identity Federation
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set environment specific variables
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "SERVICE_NAME=${REPO_NAME}-stable" >> $GITHUB_ENV
+            echo "ENV_NAME=stable" >> $GITHUB_ENV
+          elif [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
+            echo "SERVICE_NAME=${REPO_NAME}-dev" >> $GITHUB_ENV
+            echo "ENV_NAME=dev" >> $GITHUB_ENV
+          fi
+
+      # Setup GCP authentication
+      # You need to create a Workload Identity Provider and Service Account in GCP
+      # See instructions in README.md or use Service Account Key instead.
+      - id: "auth"
+        name: "Authenticate to Google Cloud"
+        uses: "google-github-actions/auth@v2"
+        with:
+          # Change these to your actual Workload Identity Provider and Service Account
+          workload_identity_provider: "projects/1234567890/locations/global/workloadIdentityPools/github/providers/my-repo"
+          service_account: "my-service-account@${{ env.PROJECT_ID }}.iam.gserviceaccount.com"
+          # Alternatively, use credentials_json with a GitHub Secret if you don't use Workload Identity:
+          # credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
+      - name: "Set up Cloud SDK"
+        uses: "google-github-actions/setup-gcloud@v2"
+
+      - name: "Docker auth"
+        run: |-
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: "Build and Push Container"
+        run: |-
+          DOCKER_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/cloud-run-source-deploy/${{ env.SERVICE_NAME }}:${{ github.sha }}"
+          docker build -t "${DOCKER_TAG}" .
+          docker push "${DOCKER_TAG}"
+          echo "IMAGE=${DOCKER_TAG}" >> $GITHUB_ENV
+
+      - name: "Deploy to Cloud Run"
+        uses: "google-github-actions/deploy-cloudrun@v2"
+        with:
+          service: "${{ env.SERVICE_NAME }}"
+          region: "${{ env.REGION }}"
+          image: "${{ env.IMAGE }}"
+          env_vars: |
+            PORT=8080
+          # We don't hardcode sensitive WEBEX_TOKEN or WEBEX_ORG_ID here.
+          # They should be configured manually in the Cloud Run console 
+          # or via Secret Manager references in this step.
