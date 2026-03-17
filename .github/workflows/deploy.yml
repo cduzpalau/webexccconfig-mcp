@@ -41,7 +41,7 @@ jobs:
           # workload_identity_provider: "projects/1234567890/locations/global/workloadIdentityPools/github/providers/my-repo"
           # service_account: "my-service-account@${{ env.PROJECT_ID }}.iam.gserviceaccount.com"
           # Alternatively, use a secret named GCP_CREDENTIALS containing the Service Account JSON key
-          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+          credentials_json: "${{ secrets.GCP_CREDENTIALS }}"
 
       - name: "Set up Cloud SDK"
         uses: "google-github-actions/setup-gcloud@v2"
@@ -66,5 +66,5 @@ jobs:
           labels: |
             intended_public=true
           # We don't hardcode sensitive WEBEX_TOKEN or WEBEX_ORG_ID here.
-          # They should be configured manually in the Cloud Run console 
+          # They should be configured manually in the Cloud Run console
           # or via Secret Manager references in this step.
