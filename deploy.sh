@@ -1,8 +1,8 @@
 #!/bin/bash
 # Local deployment script for Webex CC Config MCP to Google Cloud Run
 
-PROJECT_ID="CLTECCCT"
-REGION="us-central1" # Change if needed
+PROJECT_ID="clteccct-poc-0map"
+REGION="europe-southwest1" # Change if needed
 
 # Determine environment from argument, default to dev
 ENV=${1:-dev}
@@ -22,9 +22,9 @@ gcloud run deploy $SERVICE_NAME \
     --source . \
     --project=$PROJECT_ID \
     --region=$REGION \
-    --allow-unauthenticated \
+    --no-allow-unauthenticated \
     --port=8080 \
-    --set-env-vars="PORT=8080"
+    --update-labels=intended_public=true
 
 echo ""
 echo "Deployment initiated!"

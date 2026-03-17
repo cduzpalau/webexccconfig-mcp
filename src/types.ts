@@ -70,6 +70,30 @@ export interface ICadVariableDTO {
 }
 
 /**
+ * Data Transfer Object for Address Book.
+ */
+export interface IAddressBookDTO {
+  /** A name for the address book. */
+  name: string;
+  /** A parent type which indicates whether the address book is accessible for all sites or a specific site. */
+  parentType: "ORGANIZATION" | "SITE";
+  /** A short description indicating the context of the address book. */
+  description?: string;
+  /** ID of this contact center resource. */
+  id?: string;
+  /** ID of the contact center organization. */
+  organizationId?: string;
+  /** The specific site id where the address book is accessible. */
+  siteId?: string;
+  /** The version of this resource. */
+  version?: number;
+  /** Creation time (in epoch millis) of this resource. (Read-only) */
+  createdTime?: number;
+  /** Time (in epoch millis) when this resource was last updated. (Read-only) */
+  lastUpdatedTime?: number;
+}
+
+/**
  * Reference information for errors.
  */
 export interface IEntityInfo {
@@ -101,4 +125,12 @@ export interface IErrorDetails {
 export interface IApiErrorResponse {
   trackingId: string;
   error: IErrorDetails;
+}
+
+/**
+ * Generic Response Envelope for list operations.
+ */
+export interface IResponseEnvelope<T> {
+  meta: Record<string, any>;
+  data: T[];
 }

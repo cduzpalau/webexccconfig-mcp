@@ -7,8 +7,8 @@ on:
       - dev
 
 env:
-  PROJECT_ID: CLTECCCT
-  REGION: us-central1 # Update if needed
+  PROJECT_ID: clteccct-poc-0map
+  REGION: europe-southwest1
   REPO_NAME: webexccconfig-mcp
 
 jobs:
@@ -33,17 +33,15 @@ jobs:
           fi
 
       # Setup GCP authentication
-      # You need to create a Workload Identity Provider and Service Account in GCP
-      # See instructions in README.md or use Service Account Key instead.
       - id: "auth"
         name: "Authenticate to Google Cloud"
         uses: "google-github-actions/auth@v2"
         with:
-          # Change these to your actual Workload Identity Provider and Service Account
-          workload_identity_provider: "projects/1234567890/locations/global/workloadIdentityPools/github/providers/my-repo"
-          service_account: "my-service-account@${{ env.PROJECT_ID }}.iam.gserviceaccount.com"
-          # Alternatively, use credentials_json with a GitHub Secret if you don't use Workload Identity:
-          # credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+          # This assumes you set up Workload Identity Federation
+          # workload_identity_provider: "projects/1234567890/locations/global/workloadIdentityPools/github/providers/my-repo"
+          # service_account: "my-service-account@${{ env.PROJECT_ID }}.iam.gserviceaccount.com"
+          # Alternatively, use a secret named GCP_CREDENTIALS containing the Service Account JSON key
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
 
       - name: "Set up Cloud SDK"
         uses: "google-github-actions/setup-gcloud@v2"
@@ -65,8 +63,8 @@ jobs:
           service: "${{ env.SERVICE_NAME }}"
           region: "${{ env.REGION }}"
           image: "${{ env.IMAGE }}"
-          env_vars: |
-            PORT=8080
+          labels: |
+            intended_public=true
           # We don't hardcode sensitive WEBEX_TOKEN or WEBEX_ORG_ID here.
           # They should be configured manually in the Cloud Run console 
           # or via Secret Manager references in this step.
