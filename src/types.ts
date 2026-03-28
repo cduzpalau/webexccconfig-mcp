@@ -507,6 +507,195 @@ export interface IEntryPointDTO {
   createdTime?: number;
   /** Time (in epoch millis) when this resource was last updated. (Read-only) */
   lastUpdatedTime?: number;
+  /** ID of the asset in IMI that corresponds to this entrypoint. */
+  assetId?: string;
+  /** Refers to the type of digital channels used by the org. MIXED_MODE, IMI. */
+  imiOrgType?: string;
+  /** Setting to indicate the type of Social Channel. */
+  socialChannelType?: string;
+  /** Any routing strategy for this entry point uses the time zone that you select here. */
+  timezone?: string;
+  /** Identifier of a route point of WxC which is similar to entry point of WxCC. */
+  routePointId?: string;
+  /** Flow ID. */
+  flowId?: string;
+  /** Flow Tag ID. */
+  flowTagId?: string;
+  /** Music on Hold ID. */
+  musicOnHoldId?: string;
+  /** Outdial Queue ID. */
+  outdialQueueId?: string;
+  /** Destination phone number for overflow. */
+  overflowNumber?: string;
+  /** Subscription ID for recording events. */
+  subscriptionId?: string;
+  /** XSP Version for recording events. */
+  xspVersion?: string;
+  /** Indicates whether the created resource is call back enabled or not. */
+  callbackEnabled?: boolean;
+  /** Indicates whether the resource is Default Outdial Transfer to Queue. */
+  outdialTransferToQueueEnabled?: boolean;
+  /** Indicates whether the created resource is system created or not. */
+  systemDefault?: boolean;
+  /** Map of entrypoint to flow mapping count. */
+  dnEpMappingCount?: number;
+  /** Flow override settings. */
+  flowOverrideSettings?: IFlowOverrideSettingDTO[];
+}
+
+/**
+ * Data Transfer Object for Flow Override Setting.
+ */
+export interface IFlowOverrideSettingDTO {
+  name: string;
+  type: string;
+  entityType?: string;
+  value?: string;
+  id?: string;
+  entityId?: string;
+}
+
+/**
+ * Data Transfer Object for Reassign Agents Request.
+ */
+export interface IReassignAgentsRequestDTO {
+  /** List of agent IDs to add to the queue. */
+  add?: string[];
+  /** List of agent IDs to remove from the queue. */
+  remove?: string[];
+}
+
+/**
+ * Data Transfer Object for Desktop Layout Bulk Export Resource.
+ */
+export interface IDesktopLayoutBulkExportDTO {
+  id: string;
+  name: string;
+  description?: string;
+  jsonFileName: string;
+  teamNames?: string[];
+}
+
+/**
+ * Data Transfer Object for Desktop Layout Bulk Export.
+ */
+export interface IBulkExportDTODesktopLayout {
+  pageNumber: number;
+  pageSize: number;
+  totalResources: number;
+  rel: string;
+  resources: IDesktopLayoutBulkExportDTO[];
+}
+
+/**
+ * Data Transfer Object for Desktop Layout Bulk Request Item.
+ */
+export interface IBulkRequestItemDesktopLayoutDTO {
+  id?: string;
+  name: string;
+  editedBy: string;
+  jsonFileName: string;
+  jsonFileContent: string;
+  global: boolean;
+  status: boolean;
+  defaultJsonModified: boolean;
+  validated: boolean;
+  teamIds?: string[];
+  description?: string;
+  organizationId?: string;
+  version?: number;
+}
+
+/**
+ * Data Transfer Object for Desktop Layout Bulk Request.
+ */
+export interface IBulkRequestDTODesktopLayout {
+  items: IBulkRequestItemDesktopLayoutDTO[];
+}
+
+/**
+ * Data Transfer Object for Entry Point Bulk Export Resource.
+ */
+export interface IEntryPointBulkExportDTO {
+  name: string;
+  description: string;
+  serviceLevelThreshold: string;
+  timezone: string;
+  channelType: string;
+  socialChannelType: string;
+  entryPointType: string;
+  assetId: string;
+  flowId: string;
+  flowTag: string;
+  musicOnHoldId: string;
+  outdialQueueId: string;
+  callbackEnabled: boolean;
+}
+
+/**
+ * Data Transfer Object for Entry Point Bulk Export.
+ */
+export interface IBulkExportDTOEntryPoint {
+  pageNumber: number;
+  pageSize: number;
+  totalResources: number;
+  rel: string;
+  resources: IEntryPointBulkExportDTO[];
+}
+
+/**
+ * Data Transfer Object for Entry Point Bulk Request Item.
+ */
+export interface IBulkRequestItemEntryPointDTO {
+  itemIdentifier?: number;
+  requestAction?: string;
+  item: IEntryPointDTO;
+}
+
+/**
+ * Data Transfer Object for Entry Point Bulk Request.
+ */
+export interface IBulkRequestDTOEntryPoint {
+  items: IBulkRequestItemEntryPointDTO[];
+}
+
+/**
+ * Data Transfer Object for Contact Service Queue Bulk Export Resource.
+ */
+export interface IContactServiceQueueBulkExportDTO {
+  id: string;
+  name: string;
+  description?: string;
+  queueType: string;
+  channelType: string;
+  active: boolean;
+}
+
+/**
+ * Data Transfer Object for Contact Service Queue Bulk Export.
+ */
+export interface IBulkExportDTOContactServiceQueue {
+  pageNumber: number;
+  pageSize: number;
+  totalResources: number;
+  rel: string;
+  resources: IContactServiceQueueBulkExportDTO[];
+}
+
+/**
+ * Data Transfer Object for Contact Service Queue Bulk Request Item.
+ */
+export interface IBulkRequestItemContactServiceQueueDTO {
+  itemIdentifier?: number;
+  requestAction?: string;
+  item: IContactServiceQueueDTO;
+}
+
+/**
+ * Data Transfer Object for Contact Service Queue Bulk Request.
+ */
+export interface IBulkRequestDTOContactServiceQueue {
+  items: IBulkRequestItemContactServiceQueueDTO[];
 }
 
 /**
@@ -588,6 +777,29 @@ export interface IErrorDetails {
   key: string;
   message: IOperationError[];
   reason: string;
+}
+
+/**
+ * Metadata for Entity Reference Info.
+ */
+export interface IEntityReferenceMetaDTO {
+  orgid: string;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  totalRecords: number;
+  referencedEntities: string[];
+  currentEntity: string;
+  links?: Record<string, string>;
+}
+
+/**
+ * Data Transfer Object for Entity Reference Information.
+ */
+export interface IEntityReferenceInfoDTO {
+  description: string;
+  meta: IEntityReferenceMetaDTO;
+  data: IEntityInfo[];
 }
 
 /**
@@ -1119,10 +1331,694 @@ export interface IOverridesDTO {
   organizationId?: string;
   /** The version of this resource. */
   version?: number;
-  /** The latest override entry. */
-  latestOverride?: IOverrideDTO;
   /** Creation time (in epoch millis). (Read-only) */
   createdTime?: number;
   /** Last updated time (in epoch millis). (Read-only) */
   lastUpdatedTime?: number;
+}
+
+/**
+ * Site Team Pair for Desktop Profile Bulk Export.
+ */
+export interface ISiteTeamPairDTO {
+  siteName: string;
+  teamName: string;
+}
+
+/**
+ * Data Transfer Object for Viewable Statistics in Desktop Profile.
+ */
+export interface IViewableStatisticsDTO {
+  organizationId?: string;
+  id?: string;
+  version?: number;
+  agentStats?: boolean;
+  accessQueueStats: "SPECIFIC" | "ALL" | "PROVISIONED_VALUE" | "NONE";
+  contactServiceQueues?: string[];
+  loggedInTeamStats?: boolean;
+  accessTeamStats: "SPECIFIC" | "ALL" | "PROVISIONED_VALUE" | "NONE";
+  teams?: string[];
+  createdTime?: number;
+  lastUpdatedTime?: number;
+}
+
+/**
+ * Data Transfer Object for Desktop Profile (Agent Profile).
+ */
+export interface IDesktopProfileDTO {
+  /** Enter a name for the agent profile. */
+  name: string;
+  /** ORGANIZATION: enterprise-wide, SITE: specific site. */
+  parentType: "ORGANIZATION" | "SITE";
+  /** Specify whether the agent profile is active or not Active. */
+  active: boolean;
+  /** Valid values are 'SPECIFIC', 'ALL', 'PROVISIONED_VALUE', 'NONE' */
+  accessBuddyTeam: "SPECIFIC" | "ALL" | "PROVISIONED_VALUE" | "NONE";
+  /** Valid values are 'SPECIFIC', 'ALL', 'PROVISIONED_VALUE', 'NONE' */
+  accessEntryPoint: "SPECIFIC" | "ALL" | "PROVISIONED_VALUE" | "NONE";
+  /** Valid values are 'SPECIFIC', 'ALL', 'PROVISIONED_VALUE', 'NONE' */
+  accessIdleCode: "SPECIFIC" | "ALL" | "PROVISIONED_VALUE" | "NONE";
+  /** Valid values are 'SPECIFIC', 'ALL', 'PROVISIONED_VALUE', 'NONE' */
+  accessQueue: "SPECIFIC" | "ALL" | "PROVISIONED_VALUE" | "NONE";
+  /** Valid values are 'SPECIFIC', 'ALL', 'PROVISIONED_VALUE', 'NONE' */
+  accessWrapUpCode: "SPECIFIC" | "ALL" | "PROVISIONED_VALUE" | "NONE";
+  /** Valid values are 'SPECIFIC', 'ALL', 'PROVISIONED_VALUE', 'NONE' */
+  agentDNValidation: "SPECIFIC" | "ALL" | "PROVISIONED_VALUE" | "NONE";
+  /** (Optional) Enter a description of the profile. */
+  description?: string;
+  /** ID of this contact center resource. */
+  id?: string;
+  /** ID of the contact center organization. */
+  organizationId?: string;
+  /** The version of this resource. */
+  version?: number;
+  /** Identifier for a site. */
+  siteId?: string;
+  /** This setting allows auto wrap-up after seconds. */
+  autoWrapAfterSeconds?: number;
+  /** Specify time in minute(s). */
+  timeoutDesktopInactivityMins?: number;
+  /** Specify the address book id. */
+  addressBookId?: string;
+  /** Validation criteria setting. */
+  agentDNValidationCriteria?: string;
+  /** Specify the Outdial ANI id. */
+  outdialANIId?: string;
+  /** Specify the entry point id for outdial. */
+  outdialEntryPointId?: string;
+  /** Go to Available state after outdial. */
+  agentAvailableAfterOutdial?: boolean;
+  /** Allow auto wrap-up extension. */
+  allowAutoWrapUpExtension?: boolean;
+  /** Automatically answer incoming calls. */
+  autoAnswer?: boolean;
+  /** Allow auto wrap-up. */
+  autoWrapUp?: boolean;
+  /** Select a queue as target for consultation. */
+  consultToQueue?: boolean;
+  /** Enable dial plan. */
+  dialPlanEnabled?: boolean;
+  /** Allow Last Agent Routing check box. */
+  lastAgentRouting?: boolean;
+  /** Enable outdial calls. */
+  outdialEnabled?: boolean;
+  /** Allow external pop-up screens. */
+  screenPopup?: boolean;
+  /** Show user details of microsoft account. */
+  showUserDetailsMS?: boolean;
+  /** Show user details of webex account. */
+  showUserDetailsWebex?: boolean;
+  /** State synchronization of microsoft account. */
+  stateSynchronizationMS?: boolean;
+  /** State synchronization of webex account. */
+  stateSynchronizationWebex?: boolean;
+  /** Indicates if resource is system created. */
+  systemDefault?: boolean;
+  /** Enable time out desktop inactivity feature. */
+  timeoutDesktopInactivityCustomEnabled?: boolean;
+  /** Validation criteria list. */
+  agentDNValidationCriterions?: string[];
+  /** Teams list for consultation. */
+  buddyTeams?: string[];
+  /** Dial plans list. */
+  dialPlans?: string[];
+  /** Entry points list. */
+  entryPoints?: string[];
+  /** Idle codes list. */
+  idleCodes?: string[];
+  /** Login voice options: AGENT_DN, EXTENSION, BROWSER. */
+  loginVoiceOptions?: string[];
+  /** Queues list. */
+  queues?: string[];
+  /** Threshold alerts rules. */
+  thresholdRules?: string[];
+  /** Wrap-up codes list. */
+  wrapUpCodes?: string[];
+  /** Specifies the Statistics that agent can view. */
+  viewableStatistics?: IViewableStatisticsDTO;
+  /** Creation time (in epoch millis). (Read-only) */
+  createdTime?: number;
+  /** Last updated time (in epoch millis). (Read-only) */
+  lastUpdatedTime?: number;
+}
+
+/**
+ * Data Transfer Object for Desktop Profile Bulk Export Resource.
+ */
+export interface IDesktopProfileBulkExportDTO {
+  name: string;
+  parentType: string;
+  description?: string;
+  siteId?: string;
+  autoWrapAfterSeconds?: number;
+  accessBuddyTeam: string;
+  accessEntryPoint: string;
+  accessIdleCode: string;
+  accessQueue: string;
+  accessQueueStats: string;
+  accessTeamStats: string;
+  accessWrapUpCode: string;
+  addressBook?: string;
+  agentDNValidation: string;
+  agentDNValidationCriteria?: string;
+  outdialANI?: string;
+  outdialEntryPoint?: string;
+  agentAvailableAfterOutdial?: boolean;
+  agentStats?: boolean;
+  allowAutoWrapUpExtension?: boolean;
+  autoAnswer?: boolean;
+  autoWrapUp?: boolean;
+  consultToQueue?: boolean;
+  dialPlanEnabled?: boolean;
+  lastAgentRouting?: boolean;
+  loggedInTeamStats?: boolean;
+  outdialEnabled?: boolean;
+  screenPopup?: boolean;
+  showUserDetailsMS?: boolean;
+  showUserDetailsWebex?: boolean;
+  stateSynchronizationMS?: boolean;
+  stateSynchronizationWebex?: boolean;
+  agentDNValidationCriterions?: string[];
+  dialPlans?: string[];
+  entryPoints?: string[];
+  idleCodes?: string[];
+  loginVoiceOptions?: string[];
+  queues?: string[];
+  thresholdRules?: string[];
+  viewableStatsQueue?: string[];
+  wrapUpCodes?: string[];
+  buddyTeamsList?: ISiteTeamPairDTO[];
+  viewableStatsTeam?: ISiteTeamPairDTO[];
+}
+
+/**
+ * Data Transfer Object for Bulk Export Desktop Profiles.
+ */
+export interface IBulkExportDTODesktopProfile {
+  totalResources: number;
+  pageNumber: number;
+  pageSize: number;
+  rel: string;
+  resources: IDesktopProfileBulkExportDTO[];
+}
+
+/**
+ * Bulk Request Item for Desktop Profile.
+ */
+export interface IBulkRequestItemDesktopProfileDTO {
+  itemIdentifier: number;
+  requestAction: "SAVE" | "DELETE";
+  item: IDesktopProfileDTO;
+}
+
+/**
+ * Bulk Request for Desktop Profiles.
+ */
+export interface IBulkRequestDTODesktopProfile {
+  items: IBulkRequestItemDesktopProfileDTO[];
+}
+
+/**
+ * Data Transfer Object for Dialed Number Mapping.
+ */
+export interface IDialedNumberMappingDTO {
+  /** The identifier of an entry point. */
+  entryPointId: string;
+  /** The entryPoint name. */
+  entryPointName: string;
+  /** The dialed number(DN). */
+  dialledNumber?: string;
+  /** The extension. */
+  extension?: string;
+  /** The routing prefix. */
+  routingPrefix?: string;
+  /** The esn (routing prefix with extension). */
+  esn?: string;
+  /** The identifier of a route point of WxC. */
+  routePointId?: string;
+  /** Default dial number for the tenant. */
+  defaultAni?: boolean;
+  /** The name of the location. */
+  location?: string;
+  /** The telephony region id. */
+  regionId?: string;
+  /** Dialed number digits. */
+  dialledNumberDigits?: string;
+  /** ID of this contact center resource. */
+  id?: string;
+  /** ID of the contact center organization. */
+  organizationId?: string;
+  /** The version of this resource. */
+  version?: number;
+  /** Creation time (in epoch millis). (Read-only) */
+  createdTime?: number;
+  /** Last updated time (in epoch millis). (Read-only) */
+  lastUpdatedTime?: number;
+}
+
+/**
+ * Data Transfer Object for Dialed Number Mapping Bulk Export Resource.
+ */
+export interface IDialedNumberMappingBulkExportDTO {
+  dialledNumber?: string;
+  extension?: string;
+  routingPrefix?: string;
+  esn?: string;
+  routePointId?: string;
+  entryPointName: string;
+  defaultAni?: boolean;
+  location?: string;
+  regionId?: string;
+}
+
+/**
+ * Data Transfer Object for Bulk Export Dialed Number Mappings.
+ */
+export interface IBulkExportDTODialedNumberMapping {
+  totalResources: number;
+  pageNumber: number;
+  pageSize: number;
+  rel: string;
+  resources: IDialedNumberMappingBulkExportDTO[];
+}
+
+/**
+ * Bulk Request Item for Dialed Number Mapping.
+ */
+export interface IBulkRequestItemDialedNumberMappingDTO {
+  itemIdentifier: number;
+  requestAction: "SAVE" | "DELETE";
+  item: IDialedNumberMappingDTO;
+}
+
+/**
+ * Bulk Request for Dialed Number Mappings.
+ */
+export interface IBulkRequestDTODialedNumberMapping {
+  items: IBulkRequestItemDialedNumberMappingDTO[];
+}
+
+/**
+ * Bulk Response Item.
+ */
+export interface IBulkResponseItemDTO {
+  /** Unique item identifier for a bulk operation. */
+  itemIdentifier: number;
+  /** Indicates the error status code. */
+  status: number;
+  /** The resource URI of an entity. */
+  href?: string;
+  /** The kind of operation desired of an entity. */
+  operationType?: "CREATE" | "UPDATE" | "DELETE" | "GET";
+  /** API Error Response structure. */
+  apiError?: IApiErrorResponse;
+}
+
+/**
+ * Bulk Response.
+ */
+export interface IBulkResponseDTO {
+  items: IBulkResponseItemDTO[];
+}
+
+/**
+ * Data Transfer Object for Multimedia Profile Channel.
+ */
+export interface IMultimediaProfileChannelDTO {
+  /** Define the upper limits for telephony channel. */
+  telephony: number;
+  /** Define the upper limits for chat channel. */
+  chat: number;
+  /** Define the upper limits for email channel. */
+  email: number;
+  /** Define the upper limits for social channel. */
+  social: number;
+  /** ID of the contact center organization. */
+  organizationId?: string;
+  /** ID of this contact center resource. */
+  id?: string;
+  /** The version of this resource. */
+  version?: number;
+  /** Creation time (in epoch millis). (Read-only) */
+  createdTime?: number;
+  /** Time (in epoch millis) when this resource was last updated. (Read-only) */
+  lastUpdatedTime?: number;
+}
+
+/**
+ * Data Transfer Object for Multimedia Profile.
+ */
+export interface IMultimediaProfileDTO {
+  /** Enter the name for the multimedia profile. */
+  name: string;
+  /** Blending mode. */
+  blendingMode: "BLENDED" | "BLENDED_REALTIME" | "EXCLUSIVE" | string;
+  /** Specify whether the multimedia profile is active. */
+  active: boolean;
+  /** Specify whether the blending mode is enabled. */
+  blendingModeEnabled: boolean;
+  /** Define the upper limits for telephony channel. */
+  telephony: number;
+  /** Define the upper limits for chat channel. */
+  chat: number;
+  /** Define the upper limits for email channel. */
+  email: number;
+  /** Define the upper limits for social channel. */
+  social: number;
+  /** Enter a description for the multimedia profile. */
+  description?: string;
+  /** ID of this contact center resource. */
+  id?: string;
+  /** ID of the contact center organization. */
+  organizationId?: string;
+  /** The version of this resource. */
+  version?: number;
+  /** Indicates whether the created resource is system created. */
+  systemDefault?: boolean;
+  /** Upper limits for manually assignable channels. */
+  manuallyAssignable?: IMultimediaProfileChannelDTO;
+  /** Creation time (in epoch millis). (Read-only) */
+  createdTime?: number;
+  /** Last updated time (in epoch millis). (Read-only) */
+  lastUpdatedTime?: number;
+}
+
+/**
+ * Data Transfer Object for Multimedia Profile Export.
+ */
+export interface IMultimediaProfileExportDTO {
+  name: string;
+  description?: string;
+  chat: number;
+  email: number;
+  fax?: number;
+  others?: number;
+  social: number;
+  telephony: number;
+  video?: number;
+  active: boolean;
+  blendingModeEnabled: boolean;
+  blendingMode: string;
+  manuallyAssignable?: IMultimediaProfileChannelDTO;
+}
+
+/**
+ * Data Transfer Object for Bulk Export Multimedia Profiles.
+ */
+export interface IBulkExportDTOMultimediaProfile {
+  totalResources: number;
+  pageNumber: number;
+  pageSize: number;
+  rel: string;
+  resources: IMultimediaProfileExportDTO[];
+}
+
+/**
+ * Bulk Request Item for Multimedia Profile.
+ */
+export interface IBulkRequestItemMultimediaProfileDTO {
+  itemIdentifier: number;
+  requestAction: "SAVE" | "DELETE";
+  item: IMultimediaProfileDTO;
+}
+
+/**
+ * Bulk Request for Multimedia Profiles.
+ */
+export interface IBulkRequestDTOMultimediaProfile {
+  items: IBulkRequestItemMultimediaProfileDTO[];
+}
+
+/**
+ * Data Transfer Object for Outdial ANI Entry.
+ */
+export interface IOutdialAniEntryDTO {
+  /** Enter a name for the outdial ANI entry. */
+  name: string;
+  /** Enter a valid phone number or valid SIP URI. */
+  number: string;
+  /** ID of the contact center organization. */
+  organizationId?: string;
+  /** ID of this contact center resource. */
+  id?: string;
+  /** The version of this resource. */
+  version?: number;
+  /** Creation time (in epoch millis). (Read-only) */
+  createdTime?: number;
+  /** Time (in epoch millis) when this resource was last updated. (Read-only) */
+  lastUpdatedTime?: number;
+}
+
+/**
+ * Data Transfer Object for Outdial ANI.
+ */
+export interface IOutdialAniDTO {
+  /** Enter a name for the outdial ANI. */
+  name: string;
+  /** (Optional) Enter a description for the outdial ANI. */
+  description?: string;
+  /** List of outdial ANI entries. */
+  outdialANIEntries?: IOutdialAniEntryDTO[];
+  /** ID of this contact center resource. */
+  id?: string;
+  /** ID of the contact center organization. */
+  organizationId?: string;
+  /** The version of this resource. */
+  version?: number;
+  /** Creation time (in epoch millis). (Read-only) */
+  createdTime?: number;
+  /** Last updated time (in epoch millis). (Read-only) */
+  lastUpdatedTime?: number;
+}
+
+/**
+ * Entry details for Outdial ANI Bulk Export.
+ */
+export interface IOutdialAniEntryDetailsDTO {
+  entryName: string;
+  entryNumber: string;
+}
+
+/**
+ * Data Transfer Object for Outdial ANI Bulk Export.
+ */
+export interface IOutdialAniBulkExportDTO {
+  name: string;
+  description?: string;
+  entryDetails?: IOutdialAniEntryDetailsDTO[];
+}
+
+/**
+ * Data Transfer Object for Bulk Export Outdial ANIs.
+ */
+export interface IBulkExportDTOOutdialAni {
+  totalResources: number;
+  pageNumber: number;
+  pageSize: number;
+  rel: string;
+  resources: IOutdialAniBulkExportDTO[];
+}
+
+/**
+ * Bulk Request Item for Outdial ANI.
+ */
+export interface IBulkRequestItemOutdialAniDTO {
+  itemIdentifier: number;
+  requestAction: "SAVE" | "DELETE";
+  item: IOutdialAniDTO;
+}
+
+/**
+ * Bulk Request for Outdial ANIs.
+ */
+export interface IBulkRequestDTOOutdialAni {
+  items: IBulkRequestItemOutdialAniDTO[];
+}
+
+/**
+ * Bulk Request Item for Outdial ANI Entry.
+ */
+export interface IBulkRequestItemOutdialAniEntryDTO {
+  itemIdentifier: number;
+  requestAction: "SAVE" | "DELETE";
+  item: IOutdialAniEntryDTO;
+}
+
+/**
+ * Bulk Request for Outdial ANI Entries.
+ */
+export interface IBulkRequestDTOOutdialAniEntry {
+  items: IBulkRequestItemOutdialAniEntryDTO[];
+}
+
+/**
+ * Data Transfer Object for Dial Plan.
+ */
+export interface IDialPlanDTO {
+  /** Enter the name for the dial plan. */
+  name: string;
+  /** Format of the phone number. */
+  regularExpression: string;
+  /** Specify whether the dial plan is active. */
+  active: boolean;
+  /** A short description of the dial plan. */
+  description?: string;
+  /** Prefix added to the phone number. */
+  prefix?: string;
+  /** Characters removed from the phone number. */
+  strippedChars?: string;
+  /** Indicates if resource is system created. */
+  systemDefault?: boolean;
+  /** ID of this contact center resource. */
+  id?: string;
+  /** ID of the contact center organization. */
+  organizationId?: string;
+  /** The version of this resource. */
+  version?: number;
+  /** Creation time (in epoch millis). (Read-only) */
+  createdTime?: number;
+  /** Last updated time (in epoch millis). (Read-only) */
+  lastUpdatedTime?: number;
+}
+
+/**
+ * Data Transfer Object for Dial Plan Bulk Export Resource.
+ */
+export interface IDialPlanBulkExportDTO {
+  name: string;
+  description?: string;
+  regularExpression: string;
+  prefix?: string;
+  strippedChars?: string;
+}
+
+/**
+ * Data Transfer Object for Bulk Export Dial Plans.
+ */
+export interface IBulkExportDTODialPlan {
+  totalResources: number;
+  pageNumber: number;
+  pageSize: number;
+  rel: string;
+  resources: IDialPlanBulkExportDTO[];
+}
+
+/**
+ * Bulk Request Item for Dial Plan.
+ */
+export interface IBulkRequestItemDialPlanDTO {
+  itemIdentifier: number;
+  requestAction: "SAVE" | "DELETE";
+  item: IDialPlanDTO;
+}
+
+/**
+ * Bulk Request for Dial Plans.
+ */
+export interface IBulkRequestDTODialPlan {
+  items: IBulkRequestItemDialPlanDTO[];
+}
+
+/**
+ * Data Transfer Object for Skill Bulk Export Resource.
+ */
+export interface ISkillBulkExportDTO {
+  name: string;
+  description?: string;
+  serviceLevelThreshold?: string;
+  skillType?: string;
+  enumSkillValues?: string[];
+}
+
+/**
+ * Data Transfer Object for Bulk Export Skills.
+ */
+export interface IBulkExportDTOSkill {
+  totalResources: number;
+  pageNumber: number;
+  pageSize: number;
+  rel: string;
+  resources: ISkillBulkExportDTO[];
+}
+
+/**
+ * Bulk Request Item for Skill.
+ */
+export interface IBulkRequestItemSkillDTO {
+  itemIdentifier: number;
+  requestAction: "SAVE" | "DELETE";
+  item: ISkillDTO;
+}
+
+/**
+ * Bulk Request for Skills.
+ */
+export interface IBulkRequestDTOSkill {
+  items: IBulkRequestItemSkillDTO[];
+}
+
+/**
+ * Data Transfer Object for Global Variable Bulk Export Resource.
+ */
+export interface ICadVariableBulkExportDTO {
+  name: string;
+  defaultValue: string;
+  variableType: string;
+  active: boolean;
+  agentEditable: boolean;
+  agentViewable: boolean;
+  reportable: boolean;
+  description?: string;
+  desktopLabel?: string;
+  sensitive?: boolean;
+}
+
+/**
+ * Data Transfer Object for Bulk Export Global Variables.
+ */
+export interface IBulkExportDTOCadVariable {
+  totalResources: number;
+  pageNumber: number;
+  pageSize: number;
+  rel: string;
+  resources: ICadVariableBulkExportDTO[];
+}
+
+/**
+ * Bulk Request Item for Global Variable.
+ */
+export interface IBulkRequestItemCadVariableDTO {
+  itemIdentifier: number;
+  requestAction: "SAVE" | "DELETE";
+  item: ICadVariableDTO;
+}
+
+/**
+ * Bulk Request for Global Variables.
+ */
+export interface IBulkRequestDTOCadVariable {
+  items: IBulkRequestItemCadVariableDTO[];
+}
+
+/**
+ * Data Transfer Object for Link.
+ */
+export interface ILink {
+  href: string;
+  hreflang?: string;
+  title?: string;
+  type?: string;
+  deprecation?: string;
+  profile?: string;
+  name?: string;
+  templated?: boolean;
+}
+
+/**
+ * Data Transfer Object for Generic Response (e.g., Purge).
+ */
+export interface IPurgeResponseDTO {
+  code: number;
+  details: Record<string, any>;
+  links: ILink[];
 }

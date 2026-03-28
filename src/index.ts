@@ -18,7 +18,16 @@ import {
   IContactNumberDTO, IBulkRequestDTOContactNumber, IBulkExportDTOAddressBook,
   IBulkExportDTOContactNumber, IAgentGreetingDTO, IAuxiliaryCodeDTO,
   IBulkExportDTOAuxiliaryCode, IBulkRequestDTOAuxiliaryCode, IBusinessHoursDTO,
-  IHolidayListDTO, IOverridesDTO
+  IHolidayListDTO, IOverridesDTO, IDesktopProfileDTO, IBulkExportDTODesktopProfile,
+  IBulkRequestDTODesktopProfile, IPurgeResponseDTO,
+  IDialedNumberMappingDTO, IBulkExportDTODialedNumberMapping, IBulkRequestDTODialedNumberMapping,
+  IBulkResponseDTO, IEntityReferenceInfoDTO, IDialPlanDTO, IBulkExportDTODialPlan, IBulkRequestDTODialPlan,
+  IMultimediaProfileDTO, IBulkRequestDTOMultimediaProfile,
+  IBulkRequestDTOSkill, IBulkRequestDTOCadVariable,
+  IBulkRequestDTOOutdialAni, IOutdialAniDTO, IBulkRequestDTOOutdialAniEntry, IOutdialAniEntryDTO,
+  IBulkExportDTODesktopLayout, IBulkRequestDTODesktopLayout, IBulkExportDTOEntryPoint,
+  IBulkRequestDTOEntryPoint, IReassignAgentsRequestDTO, IBulkExportDTOContactServiceQueue,
+  IBulkRequestDTOContactServiceQueue
 } from "./types.js";
 
 /**
@@ -225,6 +234,248 @@ const registerTools = (server: McpServer, config: IServerConfig | null): void =>
           return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
         }
         return { content: [{ type: "text", text: `Successfully deleted Global Variable with ID: ${id}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Get_Global_Variable_by_ID
+   */
+  server.tool(
+    "Get_Global_Variable_by_ID",
+    "Retrieve a specific Global Variable by ID",
+    {
+      id: z.string().describe("ID of the Global Variable."),
+    },
+    async ({ id }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/cad-variable/${id}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully retrieved Global Variable: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Export_Global_Variables
+   */
+  server.tool(
+    "Bulk_Export_Global_Variables",
+    "Export all Global Variable(s) in a given organization",
+    {
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(50).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/cad-variable/bulk-export?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk Export Global Variables:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Save_Global_Variables
+   */
+  server.tool(
+    "Bulk_Save_Global_Variables",
+    "Create, Update or delete Global Variable(s) in bulk",
+    {
+      items: z.array(z.object({
+        itemIdentifier: z.number().describe("Unique item identifier for a bulk operation."),
+        requestAction: z.enum(["SAVE", "DELETE"]).describe("Identifier for action type."),
+        item: z.object({
+          name: z.string().describe("A name for the Global Variable."),
+          defaultValue: z.string().describe("A default value for the Global Variable."),
+          variableType: z.enum([
+            "STRING", "INTEGER", "DATE_TIME", "BOOLEAN", "DECIMAL",
+            "String", "Integer", "DateTime", "Boolean", "Decimal"
+          ]).describe("A valid Global Variable Type."),
+          active: z.boolean().describe("Indicates whether the Global Variable is active or not."),
+          agentEditable: z.boolean().describe("Indicates whether the Global Variable is editable."),
+          agentViewable: z.boolean().describe("Indicates whether the agent can view it."),
+          reportable: z.boolean().describe("Indicates whether it is reportable."),
+          id: z.string().optional().describe("ID of this contact center resource."),
+          version: z.number().optional().describe("The version of this resource."),
+          description: z.string().optional().describe("The description for the Global Variable created."),
+          desktopLabel: z.string().optional().describe("A desktop label for the Global Variable created."),
+          sensitive: z.boolean().optional().describe("Indicates whether the Global Variable is sensitive or not."),
+          systemDefault: z.boolean().optional().describe("Indicates whether the created resource is system created or not."),
+          organizationId: z.string().optional().describe("ID of the contact center organization."),
+        }).describe("The Global Variable object."),
+      })).describe("List of items for bulk operation."),
+    },
+    async ({ items }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/cad-variable/bulk`;
+      const body: IBulkRequestDTOCadVariable = {
+        items: items.map(item => ({
+          ...item,
+          requestAction: item.requestAction as "SAVE" | "DELETE",
+          item: {
+            ...item.item,
+            organizationId: item.item.organizationId || config.orgId,
+          } as ICadVariableDTO,
+        })),
+      };
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok && response.status !== 207) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk Save Global Variables Result:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Get_Reportable_Count_Global_Variables
+   */
+  server.tool(
+    "Get_Reportable_Count_Global_Variables",
+    "Get count for all the reportable Global Variable(s) in a given organization",
+    {},
+    async () => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/cad-variable/reportable-count`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Reportable Count Global Variables:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Global_Variable_References
+   */
+  server.tool(
+    "List_Global_Variable_References",
+    "Retrieve a list of all entities that have reference to an existing Global Variable",
+    {
+      id: z.string().describe("ID of the Global Variable."),
+      type: z.string().optional().describe("Entity type of the other entity that has a reference to this specific entity."),
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ id, type, page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (type) queryParams.append("type", type);
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/cad-variable/${id}/incoming-references?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Retrieved references for Global Variable ${id}:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Purge_Inactive_Global_Variables
+   */
+  server.tool(
+    "Purge_Inactive_Global_Variables",
+    "Purge inactive Global Variable(s) older than the configured interval",
+    {
+      nextStartId: z.string().optional().describe("This is the entity ID from which items for the next purge batch with be selected."),
+    },
+    async ({ nextStartId }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (nextStartId) queryParams.append("nextStartId", nextStartId);
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/cad-variable/purge-inactive-entities?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify({}),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Purge Inactive Global Variables Result:\n${JSON.stringify(data, null, 2)}` }] };
       } catch (error) {
         return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
       }
@@ -1081,6 +1332,228 @@ const registerTools = (server: McpServer, config: IServerConfig | null): void =>
   );
 
   /**
+   * Tool: Bulk_Export_Desktop_Layouts
+   */
+  server.tool(
+    "Bulk_Export_Desktop_Layouts",
+    "Export all Desktop Layout(s) in a given organization",
+    {
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(10).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/desktop-layout/bulk-export?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk Export Desktop Layouts:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Save_Desktop_Layouts
+   */
+  server.tool(
+    "Bulk_Save_Desktop_Layouts",
+    "Create, Update or delete Desktop Layout(s) in bulk",
+    {
+      items: z.array(z.object({
+        id: z.string().optional().describe("Resource ID of the Desktop Layout."),
+        name: z.string().describe("A name for the Desktop Layout."),
+        editedBy: z.string().describe("Indicates who modified the Desktop Layout."),
+        jsonFileName: z.string().describe("Enter the name of the file."),
+        jsonFileContent: z.string().describe("Enter the Desktop Layout json."),
+        global: z.boolean().describe("Indicates if the Desktop Layout is a global layout or a custom layout."),
+        status: z.boolean().describe("Indicates if the Desktop Layout is in active state or inactive."),
+        defaultJsonModified: z.boolean().describe("Indicates if the default Desktop Layout is modified."),
+        validated: z.boolean().describe("Indicates if the Desktop Layout is validated."),
+        teamIds: z.array(z.string()).optional().describe("Specify the teams id to assign to this Desktop Layout."),
+        description: z.string().optional().describe("A short description indicating the context of the Desktop Layout."),
+        organizationId: z.string().optional().describe("ID of the contact center organization."),
+        version: z.number().optional().describe("The version of this resource."),
+      })).describe("List of items for bulk operation."),
+    },
+    async ({ items }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/desktop-layout/bulk`;
+      const body: IBulkRequestDTODesktopLayout = {
+        items: items.map(item => ({
+          ...item,
+          organizationId: item.organizationId || config.orgId,
+        })),
+      };
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok && response.status !== 207) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk Save Desktop Layouts Result:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Create_Desktop_Layout
+   */
+  server.tool(
+    "Create_Desktop_Layout",
+    "Create a new Desktop Layout in a given organization",
+    {
+      name: z.string().describe("A name for the Desktop Layout."),
+      editedBy: z.string().describe("Indicates who modified the Desktop Layout."),
+      jsonFileName: z.string().describe("Enter the name of the file."),
+      jsonFileContent: z.string().describe("Enter the Desktop Layout json."),
+      global: z.boolean().describe("Indicates if the Desktop Layout is a global layout or a custom layout."),
+      status: z.boolean().describe("Indicates if the Desktop Layout is in active state or inactive."),
+      defaultJsonModified: z.boolean().describe("Indicates if the default Desktop Layout is modified."),
+      validated: z.boolean().describe("Indicates if the Desktop Layout is validated."),
+      teamIds: z.array(z.string()).optional().describe("Specify the teams id to assign to this Desktop Layout."),
+      description: z.string().optional().describe("A short description indicating the context of the Desktop Layout."),
+      version: z.number().optional().describe("The version of this resource."),
+      systemDefault: z.boolean().optional().describe("Indicates whether the created resource is system created or not."),
+    },
+    async (params) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/desktop-layout`;
+      const body: IDesktopLayoutDTO = { ...params, organizationId: config.orgId } as IDesktopLayoutDTO;
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return {
+            content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }],
+            isError: true,
+          };
+        }
+        return { content: [{ type: "text", text: `Successfully created Desktop Layout: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Desktop_Layout_References
+   */
+  server.tool(
+    "List_Desktop_Layout_References",
+    "Retrieve a list of all entities that have reference to an existing Desktop Layout",
+    {
+      id: z.string().describe("ID of this contact center resource."),
+      type: z.string().optional().describe("Entity type of the other entity that has a reference to this specific entity."),
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ id, type, page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (type) queryParams.append("type", type);
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/desktop-layout/${id}/incoming-references?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Retrieved references for Desktop Layout ${id}:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Purge_Inactive_Desktop_Layouts
+   */
+  server.tool(
+    "Purge_Inactive_Desktop_Layouts",
+    "Purge inactive Desktop Layout(s) older than the configured interval",
+    {
+      nextStartId: z.string().optional().describe("This is the entity ID from which items for the next purge batch with be selected."),
+    },
+    async ({ nextStartId }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (nextStartId) queryParams.append("nextStartId", nextStartId);
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/desktop-layout/purge-inactive-entities?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify({}),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Purge Inactive Desktop Layouts Result:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
    * Tool: Create_Audio_File
    */
   server.tool(
@@ -1705,6 +2178,450 @@ const registerTools = (server: McpServer, config: IServerConfig | null): void =>
   );
 
   /**
+   * Tool: Add_Remove_Agents_to_Queue
+   */
+  server.tool(
+    "Add_Remove_Agents_to_Queue",
+    "Add or remove agents/users to/from an agent based queue",
+    {
+      id: z.string().describe("Resource ID of the Contact Service Queue."),
+      add: z.array(z.string()).optional().describe("List of agent IDs to add."),
+      remove: z.array(z.string()).optional().describe("List of agent IDs to remove."),
+    },
+    async ({ id, add, remove }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/v2/contact-service-queue/${id}/reassign-agents`;
+      const body: IReassignAgentsRequestDTO = { add, remove };
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        if (response.status === 204 || response.ok) {
+          return { content: [{ type: "text", text: `Successfully reassigned agents for queue: ${id}` }] };
+        }
+        const data = await response.json();
+        const errorData = data as IApiErrorResponse;
+        return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Export_Contact_Service_Queues
+   */
+  server.tool(
+    "Bulk_Export_Contact_Service_Queues",
+    "Export all Contact Service Queue(s) in a given organization",
+    {
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(50).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/contact-service-queue/bulk-export?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk Export Contact Service Queues:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Save_Contact_Service_Queues
+   */
+  server.tool(
+    "Bulk_Save_Contact_Service_Queues",
+    "Create, Update or delete Contact Service Queue(s) in bulk",
+    {
+      items: z.array(z.object({
+        itemIdentifier: z.number().describe("Unique item identifier for a bulk operation."),
+        requestAction: z.enum(["SAVE", "DELETE"]).describe("Identifier for action type."),
+        item: z.any().describe("The Contact Service Queue object."),
+      })).describe("List of items for bulk operation."),
+    },
+    async ({ items }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/contact-service-queue/bulk`;
+      const body: IBulkRequestDTOContactServiceQueue = {
+        items: items.map(item => ({
+          ...item,
+          requestAction: item.requestAction as "SAVE" | "DELETE",
+          item: {
+            ...item.item,
+            organizationId: item.item.organizationId || config.orgId,
+          } as IContactServiceQueueDTO,
+        })),
+      };
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok && response.status !== 207) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk Save Contact Service Queues Result:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Partial_Update_Contact_Service_Queues
+   */
+  server.tool(
+    "Bulk_Partial_Update_Contact_Service_Queues",
+    "Update some or all properties for multiple Contact Service Queue(s) in bulk",
+    {
+      items: z.array(z.object({
+        itemIdentifier: z.number().describe("Unique item identifier for a bulk operation."),
+        requestAction: z.enum(["SAVE", "DELETE"]).optional().default("SAVE").describe("Identifier for action type."),
+        item: z.any().describe("The partial Contact Service Queue object."),
+      })).describe("List of items for bulk operation."),
+    },
+    async ({ items }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/contact-service-queue/bulk`;
+      const body: IBulkRequestDTOContactServiceQueue = {
+        items: items.map(item => ({
+          ...item,
+          requestAction: item.requestAction as "SAVE" | "DELETE",
+          item: {
+            ...item.item,
+            organizationId: item.item.organizationId || config.orgId,
+          } as IContactServiceQueueDTO,
+        })),
+      };
+      try {
+        const response = await fetch(url, {
+          method: "PATCH",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok && response.status !== 207) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk Partial Update Contact Service Queues Result:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Get_Contact_Service_Queue_by_ID
+   */
+  server.tool(
+    "Get_Contact_Service_Queue_by_ID",
+    "Retrieve an existing Contact Service Queue by ID",
+    {
+      id: z.string().describe("Resource ID of the Contact Service Queue."),
+    },
+    async ({ id }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/v2/contact-service-queue/${id}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully retrieved Contact Service Queue: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Agent_Based_Queues
+   */
+  server.tool(
+    "List_Agent_Based_Queues",
+    "Retrieve a list of AgentBased Contact Service Queue(s) for a specific user",
+    {
+      userId: z.string().describe("ID of an agent in WxCC."),
+    },
+    async ({ userId }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/v2/contact-service-queue/agent-based/${userId}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `AgentBased Queues for user ${userId}:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Skill_Based_Queues
+   */
+  server.tool(
+    "List_Skill_Based_Queues",
+    "Retrieve a list of SkillBased Contact Service Queue(s) for a specific user",
+    {
+      userId: z.string().describe("ID of an agent in WxCC."),
+    },
+    async ({ userId }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/v2/contact-service-queue/skill-based/${userId}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `SkillBased Queues for user ${userId}:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Team_Based_Queues
+   */
+  server.tool(
+    "List_Team_Based_Queues",
+    "Retrieve a list of TeamBased Contact Service Queue(s) for a specific user",
+    {
+      userId: z.string().describe("ID of an agent in WxCC."),
+    },
+    async ({ userId }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/v2/contact-service-queue/team-based/${userId}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `TeamBased Queues for user ${userId}:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Contact_Service_Queue_References
+   */
+  server.tool(
+    "List_Contact_Service_Queue_References",
+    "Retrieve a list of all entities that have reference to an existing Contact Service Queue",
+    {
+      id: z.string().describe("Resource ID of the Contact Service Queue."),
+      type: z.string().optional().describe("Entity type of the other entity that has a reference to this specific entity."),
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ id, type, page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (type) queryParams.append("type", type);
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/contact-service-queue/${id}/incoming-references?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Retrieved references for Contact Service Queue ${id}:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Purge_Inactive_Contact_Service_Queues
+   */
+  server.tool(
+    "Purge_Inactive_Contact_Service_Queues",
+    "Purge inactive Contact Service Queue(s) older than the configured interval",
+    {
+      nextStartId: z.string().optional().describe("This is the entity ID from which items for the next purge batch with be selected."),
+    },
+    async ({ nextStartId }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (nextStartId) queryParams.append("nextStartId", nextStartId);
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/contact-service-queue/purge-inactive-entities?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify({}),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Purge Inactive Contact Service Queues Result:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Update_Contact_Service_Queue
+   */
+  server.tool(
+    "Update_Contact_Service_Queue",
+    "Update an existing Contact Service Queue by ID",
+    {
+      id: z.string().describe("Resource ID of the Contact Service Queue."),
+      name: z.string().describe("Name of the Contact Service Queue."),
+      channelType: z.string().describe("Setting to indicate the channel type."),
+      queueType: z.enum(["INBOUND", "OUTBOUND"]).describe("INBOUND or OUTBOUND."),
+      queueRoutingType: z.string().describe("TEAM_BASED, SKILL_BASED, AGENT_BASED."),
+      routingType: z.string().describe("LONGEST_AVAILABLE_AGENT, SKILLS_BASED, CIRCULAR, LINEAR."),
+      active: z.boolean().describe("Specify whether the queue is active or not active."),
+      maxActiveContacts: z.number().describe("The maximum number of simultaneous contacts allowed."),
+      maxTimeInQueue: z.number().describe("The time in seconds before overflow."),
+      serviceLevelThreshold: z.number().describe("The time in seconds for service level flag."),
+      checkAgentAvailability: z.boolean().describe("Exclude teams with no logged in agents."),
+      description: z.string().optional().describe("A short description of the queue."),
+      organizationId: z.string().optional().describe("ID of the contact center organization."),
+      version: z.number().optional().describe("The version of this resource."),
+      overflowNumber: z.string().optional().describe("The destination phone number for overflow."),
+      skillBasedRoutingType: z.string().optional().describe("Skill based routing type."),
+      socialChannelType: z.string().optional().describe("Social channel type."),
+      timezone: z.string().optional().describe("Time zone."),
+      vendorId: z.string().optional().describe("Vendor ID."),
+      manuallyAssignable: z.boolean().optional().describe("Indicates whether the queue can be manually assigned."),
+      outdialCampaignEnabled: z.boolean().optional().describe("Should be specified only for outdial queues."),
+      recordingPermitted: z.boolean().optional().describe("Mandatory for TELEPHONY."),
+      ivrRequeueUrl: z.string().optional().describe("Mandatory for TELEPHONY."),
+      recordingAllCallsPermitted: z.boolean().optional().describe("Mandatory for TELEPHONY."),
+      monitoringPermitted: z.boolean().optional().describe("Mandatory for TELEPHONY."),
+      parkingPermitted: z.boolean().optional().describe("Mandatory for TELEPHONY."),
+      pauseRecordingPermitted: z.boolean().optional().describe("Mandatory for TELEPHONY."),
+      controlFlowScriptUrl: z.string().optional().describe("Mandatory for TELEPHONY."),
+      defaultMusicInQueueMediaFileId: z.string().optional().describe("Mandatory for TELEPHONY."),
+      recordingPauseDuration: z.number().optional().describe("The duration in seconds of pause in recording."),
+    },
+    async ({ id, ...params }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/v2/organization/${config.orgId}/contact-service-queue/${id}`;
+      const body: IContactServiceQueueDTO = { ...params, id, organizationId: config.orgId } as IContactServiceQueueDTO;
+
+      try {
+        const response = await fetch(url, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully updated Contact Service Queue: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
    * Tool: List_Contact_Service_Queues
    */
   server.tool(
@@ -2031,6 +2948,293 @@ const registerTools = (server: McpServer, config: IServerConfig | null): void =>
   );
 
   /**
+   * Tool: Get_Skill_by_ID
+   */
+  server.tool(
+    "Get_Skill_by_ID",
+    "Retrieve a specific Skill by ID",
+    {
+      id: z.string().describe("Resource ID of the Skill."),
+    },
+    async ({ id }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/skill/${id}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully retrieved Skill: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Update_Skill
+   */
+  server.tool(
+    "Update_Skill",
+    "Update an existing Skill by ID",
+    {
+      id: z.string().describe("Resource ID of the Skill."),
+      name: z.string().describe("Indicates the name of the skill. Once created, name cannot be modified."),
+      skillType: z.enum(["Proficiency", "Boolean", "Text", "enum"]).describe("This can be Proficiency, Boolean, Text, or enum. Once created, skillType cannot be modified."),
+      active: z.boolean().describe("Indicates the status of the skill whether it is active or not."),
+      serviceLevelThreshold: z.number().int().describe("Allows to set the time that a customer request can be in a queue before the system flags it as outside the service level."),
+      version: z.number().int().describe("The version of this resource."),
+      description: z.string().optional().describe("Indicates the description of the skill."),
+      enumSkillValues: z.array(z.object({
+        id: z.string().optional().describe("ID of this contact center resource."),
+        name: z.string().describe("Indicates the name of the enumSkillValue."),
+        description: z.string().optional().describe("Indicates the description of the enumSkillValue."),
+        version: z.number().int().optional().describe("The version of this resource."),
+        skillId: z.string().optional().describe("Represents the skillId of the enumSkillValue."),
+      })).optional().describe("If skillType is enum, the skill can take different sub-values which are defined with this field."),
+    },
+    async ({ id, enumSkillValues, ...rest }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/skill/${id}`;
+      
+      const body: any = {
+        ...rest,
+        id,
+        organizationId: config.orgId,
+      };
+
+      if (enumSkillValues) {
+        body.enumSkillValues = enumSkillValues.map(val => ({
+          ...val,
+          organizationId: config.orgId
+        }));
+      }
+
+      try {
+        const response = await fetch(url, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return {
+            content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }],
+            isError: true,
+          };
+        }
+
+        return {
+          content: [{ type: "text", text: `Successfully updated Skill: ${JSON.stringify(data, null, 2)}` }],
+        };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Export_Skills
+   */
+  server.tool(
+    "Bulk_Export_Skills",
+    "Export all Skill(s) in a given organization",
+    {
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(50).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/skill/bulk-export?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk Export Skills:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Save_Skills
+   */
+  server.tool(
+    "Bulk_Save_Skills",
+    "Create, Update or delete Skill(s) in bulk",
+    {
+      items: z.array(z.object({
+        itemIdentifier: z.number().describe("Unique item identifier for a bulk operation."),
+        requestAction: z.enum(["SAVE", "DELETE"]).describe("Identifier for action type."),
+        item: z.object({
+          name: z.string().describe("Indicates the name of the skill."),
+          skillType: z.enum(["Proficiency", "Boolean", "Text", "enum"]).describe("This can be Proficiency, Boolean, Text, or enum."),
+          active: z.boolean().describe("Indicates the status of the skill."),
+          serviceLevelThreshold: z.number().int().describe("Allows to set the time for service level."),
+          id: z.string().optional().describe("ID of this contact center resource."),
+          version: z.number().optional().describe("The version of this resource."),
+          description: z.string().optional().describe("Indicates the description of the skill."),
+          organizationId: z.string().optional().describe("ID of the contact center organization."),
+          enumSkillValues: z.array(z.object({
+            id: z.string().optional().describe("ID of this contact center resource."),
+            name: z.string().describe("Indicates the name of the enumSkillValue."),
+            description: z.string().optional().describe("Indicates the description of the enumSkillValue."),
+            version: z.number().int().optional().describe("The version of this resource."),
+            skillId: z.string().optional().describe("Represents the skillId of the enumSkillValue."),
+            organizationId: z.string().optional().describe("ID of the contact center organization."),
+          })).optional().describe("If skillType is enum, the skill can take different sub-values."),
+        }).describe("The Skill object."),
+      })).describe("List of items for bulk operation."),
+    },
+    async ({ items }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/skill/bulk`;
+      const body: IBulkRequestDTOSkill = {
+        items: items.map(item => ({
+          ...item,
+          requestAction: item.requestAction as "SAVE" | "DELETE",
+          item: {
+            ...item.item,
+            organizationId: item.item.organizationId || config.orgId,
+            enumSkillValues: item.item.enumSkillValues?.map(val => ({
+              ...val,
+              organizationId: val.organizationId || config.orgId
+            }))
+          } as ISkillDTO,
+        })),
+      };
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok && response.status !== 207) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk Save Skills Result:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Skill_References
+   */
+  server.tool(
+    "List_Skill_References",
+    "List references for a specific Skill",
+    {
+      id: z.string().describe("Resource ID of the Skill."),
+      type: z.string().optional().describe("Entity type of the other entity that has a reference to this specific entity."),
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ id, type, page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (type) queryParams.append("type", type);
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/skill/${id}/incoming-references?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Retrieved references for Skill ${id}:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Purge_Inactive_Skills
+   */
+  server.tool(
+    "Purge_Inactive_Skills",
+    "Purge inactive Skill(s) older than the configured interval",
+    {
+      nextStartId: z.string().optional().describe("This is the entity ID from which items for the next purge batch with be selected."),
+    },
+    async ({ nextStartId }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (nextStartId) queryParams.append("nextStartId", nextStartId);
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/skill/purge-inactive-entities?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify({}),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Purge Inactive Skills Result:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
    * Tool: List_Desktop_Layouts
    */
   server.tool(
@@ -2206,6 +3410,233 @@ const registerTools = (server: McpServer, config: IServerConfig | null): void =>
         }
 
         return { content: [{ type: "text", text: `Successfully deleted Desktop Layout with ID: ${id}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Export_Entry_Points
+   */
+  server.tool(
+    "Bulk_Export_Entry_Points",
+    "Export all Entry Point(s) in a given organization",
+    {
+      type: z.enum(["INBOUND", "OUTBOUND"]).describe("Indicates the type of Entrypoint; can be INBOUND or OUTBOUND."),
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(50).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ type, page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      queryParams.append("type", type);
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/entry-point/bulk-export?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk Export Entry Points:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Save_Entry_Points
+   */
+  server.tool(
+    "Bulk_Save_Entry_Points",
+    "Create, Update or delete Entry Point(s) in bulk",
+    {
+      items: z.array(z.object({
+        itemIdentifier: z.number().describe("Unique item identifier for a bulk operation."),
+        requestAction: z.enum(["SAVE", "DELETE"]).describe("Identifier for action type."),
+        item: z.object({
+          name: z.string().describe("A unique name for the entry point."),
+          channelType: z.string().describe("Setting to indicate the channel type."),
+          entryPointType: z.string().describe("INBOUND or OUTBOUND."),
+          active: z.boolean().describe("Indicates whether the state is active or inactive."),
+          maximumActiveContacts: z.number().describe("Caps the maximum number of simultaneous calls."),
+          serviceLevelThreshold: z.number().describe("Time in seconds for service level flag."),
+          id: z.string().optional().describe("ID of this contact center resource."),
+          description: z.string().optional().describe("A short description of the entry point."),
+          organizationId: z.string().optional().describe("ID of the contact center organization."),
+          version: z.number().optional().describe("The version of this resource."),
+          assetId: z.string().optional().describe("ID of the asset in IMI."),
+          imiOrgType: z.string().optional().describe("Refers to the type of digital channels used."),
+          socialChannelType: z.string().optional().describe("Type of Social Channel."),
+          timezone: z.string().optional().describe("Time zone."),
+          flowId: z.string().optional().describe("Flow ID."),
+          flowTagId: z.string().optional().describe("Flow Tag ID."),
+          musicOnHoldId: z.string().optional().describe("Music on Hold ID."),
+          outdialQueueId: z.string().optional().describe("Outdial Queue ID."),
+          callbackEnabled: z.boolean().optional().describe("Is call back enabled."),
+        }).describe("The Entry Point object."),
+      })).describe("List of items for bulk operation."),
+    },
+    async ({ items }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/entry-point/bulk`;
+      const body: IBulkRequestDTOEntryPoint = {
+        items: items.map(item => ({
+          ...item,
+          requestAction: item.requestAction as "SAVE" | "DELETE",
+          item: {
+            ...item.item,
+            organizationId: item.item.organizationId || config.orgId,
+          } as IEntryPointDTO,
+        })),
+      };
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok && response.status !== 207) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk Save Entry Points Result:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Create_Entry_Point
+   */
+  server.tool(
+    "Create_Entry_Point",
+    "Create a new Entry Point",
+    {
+      name: z.string().describe("A unique name for the entry point."),
+      channelType: z.string().describe("Setting to indicate the channel type."),
+      entryPointType: z.enum(["INBOUND", "OUTBOUND"]).describe("Setting to indicate if this entry point is meant for incoming or outgoing contacts."),
+      active: z.boolean().describe("Used to toggle the state of the entrypoint from active to inactive and vice-versa."),
+      serviceLevelThreshold: z.number().describe("Allows to set the time that a customer request can be in a queue before the system flags it as outside the service level."),
+      maximumActiveContacts: z.number().describe("Caps the maximum number of simultaneous calls for this entry point."),
+      description: z.string().optional().describe("A short description of the entry point."),
+      assetId: z.string().optional().describe("ID of the asset in IMI that corresponds to this entrypoint."),
+      imiOrgType: z.string().optional().describe("Refers to the type of digital channels used by the org. MIXED_MODE, IMI."),
+      socialChannelType: z.string().optional().describe("Setting to indicate the type of Social Channel."),
+      timezone: z.string().optional().describe("Any routing strategy for this entry point uses the time zone that you select here."),
+      flowId: z.string().optional().describe("Flow ID."),
+      flowTagId: z.string().optional().describe("Flow Tag ID."),
+      musicOnHoldId: z.string().optional().describe("Music on Hold ID."),
+      outdialQueueId: z.string().optional().describe("Outdial Queue ID."),
+      callbackEnabled: z.boolean().optional().describe("Indicates whether the created resource is call back enabled or not."),
+    },
+    async (params) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/entry-point`;
+      const body: IEntryPointDTO = { ...params, organizationId: config.orgId } as IEntryPointDTO;
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully created Entry Point: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Delete_Entry_Point
+   */
+  server.tool(
+    "Delete_Entry_Point",
+    "Delete an existing Entry Point by ID",
+    {
+      id: z.string().describe("Resource ID of the Entry Point."),
+    },
+    async ({ id }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/entry-point/${id}`;
+      try {
+        const response = await fetch(url, {
+          method: "DELETE",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "application/json" },
+        });
+        if (response.status === 204 || response.ok) {
+          return { content: [{ type: "text", text: `Successfully deleted Entry Point with ID: ${id}` }] };
+        }
+        const data = await response.json();
+        const errorData = data as IApiErrorResponse;
+        return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Get_Entry_Point_by_ID
+   */
+  server.tool(
+    "Get_Entry_Point_by_ID",
+    "Retrieve an existing Entry Point by ID",
+    {
+      id: z.string().describe("Resource ID of the Entry Point."),
+      includeNames: z.boolean().optional().default(false).describe("Specify whether to include flow override settings reference variable names."),
+    },
+    async ({ id, includeNames }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      queryParams.append("includeNames", includeNames.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/entry-point/${id}?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully retrieved Entry Point: ${JSON.stringify(data, null, 2)}` }] };
       } catch (error) {
         return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
       }
@@ -4164,6 +5595,2277 @@ const registerTools = (server: McpServer, config: IServerConfig | null): void =>
           return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
         }
         return { content: [{ type: "text", text: `Retrieved references for Overrides ${id}:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Desktop_Profiles
+   */
+  server.tool(
+    "List_Desktop_Profiles",
+    "Retrieve a list of Desktop Profile(s) in the organization (v2)",
+    {
+      filter: z.string().optional().describe("Specify a filter based on which the results will be fetched (RSQL syntax)."),
+      attributes: z.string().optional().describe("Specify the attributes to be returned."),
+      search: z.string().optional().describe("Filter data based on the search keyword."),
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+      singleObjectResponse: z.boolean().optional().default(false).describe("Specify whether to include array fields in the response."),
+    },
+    async ({ filter, attributes, search, page, pageSize, singleObjectResponse }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (filter) queryParams.append("filter", filter);
+      if (attributes) queryParams.append("attributes", attributes);
+      if (search) queryParams.append("search", search);
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+      queryParams.append("singleObjectResponse", singleObjectResponse.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/v2/agent-profile?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        const envelope = data as IResponseEnvelope<IDesktopProfileDTO>;
+        return { content: [{ type: "text", text: `Retrieved ${envelope.data.length} Desktop Profile(s):\n${JSON.stringify(envelope, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Get_Desktop_Profile_by_ID
+   */
+  server.tool(
+    "Get_Desktop_Profile_by_ID",
+    "Retrieve a specific Desktop Profile by ID",
+    {
+      id: z.string().describe("Resource ID of the Desktop Profile."),
+    },
+    async ({ id }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/agent-profile/${id}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully retrieved Desktop Profile: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Create_Desktop_Profile
+   */
+  server.tool(
+    "Create_Desktop_Profile",
+    "Create a new Desktop Profile",
+    {
+      name: z.string().describe("Enter a name for the agent profile."),
+      parentType: z.enum(["ORGANIZATION", "SITE"]).describe("ORGANIZATION: enterprise-wide, SITE: specific site."),
+      active: z.boolean().describe("Specify whether the agent profile is active."),
+      accessBuddyTeam: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+      accessEntryPoint: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+      accessIdleCode: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+      accessQueue: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+      accessWrapUpCode: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+      agentDNValidation: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+      description: z.string().optional(),
+      siteId: z.string().optional(),
+      autoWrapAfterSeconds: z.number().optional(),
+      timeoutDesktopInactivityMins: z.number().optional(),
+      addressBookId: z.string().optional(),
+      agentDNValidationCriteria: z.string().optional(),
+      outdialANIId: z.string().optional(),
+      outdialEntryPointId: z.string().optional(),
+      agentAvailableAfterOutdial: z.boolean().optional(),
+      allowAutoWrapUpExtension: z.boolean().optional(),
+      autoAnswer: z.boolean().optional(),
+      autoWrapUp: z.boolean().optional(),
+      consultToQueue: z.boolean().optional(),
+      dialPlanEnabled: z.boolean().optional(),
+      lastAgentRouting: z.boolean().optional(),
+      outdialEnabled: z.boolean().optional(),
+      screenPopup: z.boolean().optional(),
+      showUserDetailsMS: z.boolean().optional(),
+      showUserDetailsWebex: z.boolean().optional(),
+      stateSynchronizationMS: z.boolean().optional(),
+      stateSynchronizationWebex: z.boolean().optional(),
+      timeoutDesktopInactivityCustomEnabled: z.boolean().optional(),
+      agentDNValidationCriterions: z.array(z.string()).optional(),
+      buddyTeams: z.array(z.string()).optional(),
+      dialPlans: z.array(z.string()).optional(),
+      entryPoints: z.array(z.string()).optional(),
+      idleCodes: z.array(z.string()).optional(),
+      loginVoiceOptions: z.array(z.string()).optional(),
+      queues: z.array(z.string()).optional(),
+      thresholdRules: z.array(z.string()).optional(),
+      wrapUpCodes: z.array(z.string()).optional(),
+      viewableStatistics: z.object({
+        agentStats: z.boolean().optional(),
+        accessQueueStats: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+        contactServiceQueues: z.array(z.string()).optional(),
+        loggedInTeamStats: z.boolean().optional(),
+        accessTeamStats: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+        teams: z.array(z.string()).optional(),
+      }).optional(),
+    },
+    async (params) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/agent-profile`;
+      const body: IDesktopProfileDTO = {
+        ...params,
+        organizationId: config.orgId,
+      } as IDesktopProfileDTO;
+
+      if (body.viewableStatistics) {
+        body.viewableStatistics.organizationId = config.orgId;
+      }
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully created Desktop Profile: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Update_Desktop_Profile
+   */
+  server.tool(
+    "Update_Desktop_Profile",
+    "Update an existing Desktop Profile by ID",
+    {
+      id: z.string().describe("Resource ID of the Desktop Profile."),
+      name: z.string().describe("Enter a name for the agent profile."),
+      parentType: z.enum(["ORGANIZATION", "SITE"]).describe("ORGANIZATION: enterprise-wide, SITE: specific site."),
+      active: z.boolean().describe("Specify whether the agent profile is active."),
+      accessBuddyTeam: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+      accessEntryPoint: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+      accessIdleCode: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+      accessQueue: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+      accessWrapUpCode: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+      agentDNValidation: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+      version: z.number().int().optional().describe("The version of this resource."),
+      description: z.string().optional(),
+      siteId: z.string().optional(),
+      autoWrapAfterSeconds: z.number().optional(),
+      timeoutDesktopInactivityMins: z.number().optional(),
+      addressBookId: z.string().optional(),
+      agentDNValidationCriteria: z.string().optional(),
+      outdialANIId: z.string().optional(),
+      outdialEntryPointId: z.string().optional(),
+      agentAvailableAfterOutdial: z.boolean().optional(),
+      allowAutoWrapUpExtension: z.boolean().optional(),
+      autoAnswer: z.boolean().optional(),
+      autoWrapUp: z.boolean().optional(),
+      consultToQueue: z.boolean().optional(),
+      dialPlanEnabled: z.boolean().optional(),
+      lastAgentRouting: z.boolean().optional(),
+      outdialEnabled: z.boolean().optional(),
+      screenPopup: z.boolean().optional(),
+      showUserDetailsMS: z.boolean().optional(),
+      showUserDetailsWebex: z.boolean().optional(),
+      stateSynchronizationMS: z.boolean().optional(),
+      stateSynchronizationWebex: z.boolean().optional(),
+      timeoutDesktopInactivityCustomEnabled: z.boolean().optional(),
+      agentDNValidationCriterions: z.array(z.string()).optional(),
+      buddyTeams: z.array(z.string()).optional(),
+      dialPlans: z.array(z.string()).optional(),
+      entryPoints: z.array(z.string()).optional(),
+      idleCodes: z.array(z.string()).optional(),
+      loginVoiceOptions: z.array(z.string()).optional(),
+      queues: z.array(z.string()).optional(),
+      thresholdRules: z.array(z.string()).optional(),
+      wrapUpCodes: z.array(z.string()).optional(),
+      viewableStatistics: z.object({
+        id: z.string().optional(),
+        version: z.number().int().optional(),
+        agentStats: z.boolean().optional(),
+        accessQueueStats: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+        contactServiceQueues: z.array(z.string()).optional(),
+        loggedInTeamStats: z.boolean().optional(),
+        accessTeamStats: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+        teams: z.array(z.string()).optional(),
+      }).optional(),
+    },
+    async ({ id, ...params }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/agent-profile/${id}`;
+      const body: IDesktopProfileDTO = {
+        ...params,
+        id,
+        organizationId: config.orgId,
+      } as IDesktopProfileDTO;
+
+      if (body.viewableStatistics) {
+        body.viewableStatistics.organizationId = config.orgId;
+      }
+
+      try {
+        const response = await fetch(url, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully updated Desktop Profile: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Delete_Desktop_Profile
+   */
+  server.tool(
+    "Delete_Desktop_Profile",
+    "Delete an existing Desktop Profile by ID",
+    {
+      id: z.string().describe("Resource ID of the Desktop Profile to delete."),
+    },
+    async ({ id }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/agent-profile/${id}`;
+      try {
+        const response = await fetch(url, {
+          method: "DELETE",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "application/json" },
+        });
+        if (!response.ok) {
+          if (response.status === 204) {
+            return { content: [{ type: "text", text: `Successfully deleted Desktop Profile with ID: ${id}` }] };
+          }
+          const data = await response.json();
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully deleted Desktop Profile with ID: ${id}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Desktop_Profile_References
+   */
+  server.tool(
+    "List_Desktop_Profile_References",
+    "Retrieve a list of all entities that have reference to an existing Desktop Profile",
+    {
+      id: z.string().describe("ID of this contact center resource."),
+      type: z.string().optional().describe("Entity type of the other entity that has a reference to this specific entity."),
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ id, type, page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (type) queryParams.append("type", type);
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/agent-profile/${id}/incoming-references?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Retrieved references for Desktop Profile ${id}:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Export_Desktop_Profiles
+   */
+  server.tool(
+    "Bulk_Export_Desktop_Profiles",
+    "Export all Desktop Profile(s) in a given organization",
+    {
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/agent-profile/bulk-export?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully exported Desktop Profiles:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Save_Desktop_Profiles
+   */
+  server.tool(
+    "Bulk_Save_Desktop_Profiles",
+    "Create, Update or delete Desktop Profile(s) in bulk",
+    {
+      items: z.array(z.object({
+        itemIdentifier: z.number().int().describe("Unique item identifier for a bulk operation."),
+        requestAction: z.enum(["SAVE", "DELETE"]).describe("Identifier for action type. Possible values can be SAVE and DELETE."),
+        item: z.object({
+          name: z.string().describe("Enter a name for the agent profile."),
+          parentType: z.enum(["ORGANIZATION", "SITE"]),
+          active: z.boolean(),
+          accessBuddyTeam: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+          accessEntryPoint: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+          accessIdleCode: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+          accessQueue: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+          accessWrapUpCode: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+          agentDNValidation: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+          id: z.string().optional(),
+          description: z.string().optional(),
+          organizationId: z.string().optional(),
+          version: z.number().int().optional(),
+          siteId: z.string().optional(),
+          autoWrapAfterSeconds: z.number().optional(),
+          timeoutDesktopInactivityMins: z.number().optional(),
+          addressBookId: z.string().optional(),
+          agentDNValidationCriteria: z.string().optional(),
+          outdialANIId: z.string().optional(),
+          outdialEntryPointId: z.string().optional(),
+          agentAvailableAfterOutdial: z.boolean().optional(),
+          allowAutoWrapUpExtension: z.boolean().optional(),
+          autoAnswer: z.boolean().optional(),
+          autoWrapUp: z.boolean().optional(),
+          consultToQueue: z.boolean().optional(),
+          dialPlanEnabled: z.boolean().optional(),
+          lastAgentRouting: z.boolean().optional(),
+          outdialEnabled: z.boolean().optional(),
+          screenPopup: z.boolean().optional(),
+          showUserDetailsMS: z.boolean().optional(),
+          showUserDetailsWebex: z.boolean().optional(),
+          stateSynchronizationMS: z.boolean().optional(),
+          stateSynchronizationWebex: z.boolean().optional(),
+          timeoutDesktopInactivityCustomEnabled: z.boolean().optional(),
+          agentDNValidationCriterions: z.array(z.string()).optional(),
+          buddyTeams: z.array(z.string()).optional(),
+          dialPlans: z.array(z.string()).optional(),
+          entryPoints: z.array(z.string()).optional(),
+          idleCodes: z.array(z.string()).optional(),
+          loginVoiceOptions: z.array(z.string()).optional(),
+          queues: z.array(z.string()).optional(),
+          thresholdRules: z.array(z.string()).optional(),
+          wrapUpCodes: z.array(z.string()).optional(),
+          viewableStatistics: z.object({
+            id: z.string().optional(),
+            version: z.number().int().optional(),
+            agentStats: z.boolean().optional(),
+            accessQueueStats: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+            contactServiceQueues: z.array(z.string()).optional(),
+            loggedInTeamStats: z.boolean().optional(),
+            accessTeamStats: z.enum(["SPECIFIC", "ALL", "PROVISIONED_VALUE", "NONE"]),
+            teams: z.array(z.string()).optional(),
+          }).optional(),
+        })
+      })).describe("List of items for bulk operation.")
+    },
+    async ({ items }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/agent-profile/bulk`;
+      const body: IBulkRequestDTODesktopProfile = {
+        items: items.map(item => ({
+          ...item,
+          item: {
+            ...item.item,
+            organizationId: config.orgId,
+            viewableStatistics: item.item.viewableStatistics ? { ...item.item.viewableStatistics, organizationId: config.orgId } : undefined
+          } as IDesktopProfileDTO
+        }))
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok && response.status !== 207) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk save operation completed (Status ${response.status}):\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Purge_Inactive_Desktop_Profiles
+   */
+  server.tool(
+    "Purge_Inactive_Desktop_Profiles",
+    "Purge inactive Desktop Profile(s) older than the configured interval",
+    {
+      nextStartId: z.string().optional().describe("This is the entity ID from which items for the next purge batch with be selected."),
+    },
+    async ({ nextStartId }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (nextStartId) queryParams.append("nextStartId", nextStartId);
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/agent-profile/purge-inactive-entities?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Accept": "*/*",
+          },
+          body: JSON.stringify({}),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully purged inactive Desktop Profiles: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Export_Dialed_Number_Mappings
+   */
+  server.tool(
+    "Bulk_Export_Dialed_Number_Mappings",
+    "Export all Dialed Number Mapping(s) in a given organization",
+    {
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/dial-number/bulk-export?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully exported Dialed Number Mappings:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Save_Dialed_Number_Mappings
+   */
+  server.tool(
+    "Bulk_Save_Dialed_Number_Mappings",
+    "Create, Update or delete Dialed Number Mapping(s) in bulk",
+    {
+      items: z.array(z.object({
+        itemIdentifier: z.number().int().describe("Unique item identifier for a bulk operation."),
+        requestAction: z.enum(["SAVE", "DELETE"]).describe("Identifier for action type. Possible values are SAVE and DELETE."),
+        item: z.object({
+          entryPointId: z.string().describe("The identifier of an entry point to which you want to map the DN."),
+          entryPointName: z.string().describe("The entryPoint name of the entryPointId."),
+          dialledNumber: z.string().optional().describe("The dialed number(DN) used to map to entry points."),
+          extension: z.string().or(z.number()).optional().describe("The extension used to map to entry points."),
+          routingPrefix: z.string().or(z.number()).optional().describe("The routing prefix is mapped to a location and can be prefixed with an extension."),
+          esn: z.string().or(z.number()).optional().describe("The esn is routing prefix with extension."),
+          routePointId: z.string().optional().describe("The identifier of a route point of WxC which is similar to entry point of WxCC."),
+          defaultAni: z.boolean().optional().describe("The default dial number for the tenant to make outdial calls."),
+          location: z.string().optional().describe("The name of the location as configured on Webex Calling."),
+          regionId: z.string().optional().describe("Specify the telephony region id."),
+          dialledNumberDigits: z.string().optional().describe("Dialed number digits."),
+          id: z.string().optional().describe("ID of this contact center resource."),
+          version: z.number().int().optional().describe("The version of this resource."),
+        })
+      })).describe("List of items for bulk operation.")
+    },
+    async ({ items }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/dial-number/bulk`;
+      const body: IBulkRequestDTODialedNumberMapping = {
+        items: items.map(item => ({
+          ...item,
+          item: {
+            ...item.item,
+            extension: item.item.extension?.toString(),
+            routingPrefix: item.item.routingPrefix?.toString(),
+            esn: item.item.esn?.toString(),
+            organizationId: config.orgId
+          } as IDialedNumberMappingDTO
+        }))
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok && response.status !== 207) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk save operation completed (Status ${response.status}):\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Create_Dialed_Number_Mapping
+   */
+  server.tool(
+    "Create_Dialed_Number_Mapping",
+    "Create a new Dialed Number Mapping in a given organization",
+    {
+      entryPointId: z.string().describe("The identifier of an entry point to which you want to map the DN."),
+      entryPointName: z.string().describe("The entryPoint name of the entryPointId."),
+      dialledNumber: z.string().optional().describe("The dialed number(DN) used to map to entry points."),
+      extension: z.string().or(z.number()).optional().describe("The extension used to map to entry points."),
+      routingPrefix: z.string().or(z.number()).optional().describe("The routing prefix is mapped to a location and can be prefixed with an extension."),
+      esn: z.string().or(z.number()).optional().describe("The esn is routing prefix with extension."),
+      routePointId: z.string().optional().describe("The identifier of a route point of WxC which is similar to entry point of WxCC."),
+      defaultAni: z.boolean().optional().describe("The default dial number for the tenant to make outdial calls."),
+      location: z.string().optional().describe("The name of the location as configured on Webex Calling."),
+      regionId: z.string().optional().describe("Specify the telephony region id."),
+      dialledNumberDigits: z.string().optional().describe("Dialed number digits."),
+      version: z.number().int().optional().describe("The version of this resource."),
+    },
+    async (params) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/dial-number`;
+      const body: IDialedNumberMappingDTO = {
+        ...params,
+        extension: params.extension?.toString(),
+        routingPrefix: params.routingPrefix?.toString(),
+        esn: params.esn?.toString(),
+        organizationId: config.orgId
+      } as IDialedNumberMappingDTO;
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully created Dialed Number Mapping: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Delete_All_Dialed_Number_Mappings
+   */
+  server.tool(
+    "Delete_All_Dialed_Number_Mappings",
+    "Delete all Dialed Number Mapping(s) in a given organization",
+    {},
+    async () => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/dial-number`;
+      try {
+        const response = await fetch(url, {
+          method: "DELETE",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "application/json" },
+        });
+        if (!response.ok) {
+          const data = await response.json();
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully deleted all Dialed Number Mappings` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Delete_Dialed_Number_Mapping
+   */
+  server.tool(
+    "Delete_Dialed_Number_Mapping",
+    "Delete an existing Dialed Number Mapping by ID in a given organization",
+    {
+      id: z.string().describe("Resource ID of the Dialed Number Mapping."),
+    },
+    async ({ id }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/dial-number/${id}`;
+      try {
+        const response = await fetch(url, {
+          method: "DELETE",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "application/json" },
+        });
+        if (!response.ok) {
+          const data = await response.json();
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully deleted Dialed Number Mapping with ID: ${id}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Get_Dialed_Number_Mapping_by_ID
+   */
+  server.tool(
+    "Get_Dialed_Number_Mapping_by_ID",
+    "Retrieve an existing Dialed Number Mapping by ID in a given organization",
+    {
+      id: z.string().describe("Resource ID of the Dialed Number Mapping."),
+    },
+    async ({ id }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/dial-number/${id}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully retrieved Dialed Number Mapping:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Dialed_Number_Mappings
+   */
+  server.tool(
+    "List_Dialed_Number_Mappings",
+    "Retrieve a list of Dialed Number Mapping(s) in a given organization (v3)",
+    {
+      filter: z.string().optional().describe("Specify a filter based on which the results will be fetched (RSQL syntax)."),
+      attributes: z.string().optional().describe("Specify the attributes to be returned."),
+      search: z.string().optional().describe("Filter data based on the search keyword."),
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+      includeEntryPointName: z.boolean().optional().default(false).describe("If set to true and entryPointName is in the attributes, the API will return entryPointName in the Get All response."),
+    },
+    async ({ filter, attributes, search, page, pageSize, includeEntryPointName }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (filter) queryParams.append("filter", filter);
+      if (attributes) queryParams.append("attributes", attributes);
+      if (search) queryParams.append("search", search);
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+      queryParams.append("includeEntryPointName", includeEntryPointName.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/v3/dial-number?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        const envelope = data as IResponseEnvelope<IDialedNumberMappingDTO>;
+        return { content: [{ type: "text", text: `Retrieved ${envelope.data.length} Dialed Number Mapping(s):\n${JSON.stringify(envelope, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_All_Dialed_Numbers_Raw
+   */
+  server.tool(
+    "List_All_Dialed_Numbers_Raw",
+    "Retrieve a list of only dialed numbers without pagination in a given organization",
+    {},
+    async () => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/dial-number/numbers-only`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `All Dialed Numbers:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Dialed_Number_Mapping_References
+   */
+  server.tool(
+    "List_Dialed_Number_Mapping_References",
+    "Retrieve a list of all entities that have reference to an existing Dialed Number Mapping by ID",
+    {
+      id: z.string().describe("ID of this contact center resource."),
+      type: z.string().optional().describe("Entity type of the other entity that has a reference to this specific entity."),
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ id, type, page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (type) queryParams.append("type", type);
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/dial-number/${id}/incoming-references?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Retrieved references for Dialed Number Mapping ${id}:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Update_Dialed_Number_Mapping
+   */
+  server.tool(
+    "Update_Dialed_Number_Mapping",
+    "Update an existing Dialed Number Mapping by ID in a given organization",
+    {
+      id: z.string().describe("Resource ID of the Dialed Number Mapping."),
+      entryPointId: z.string().describe("The identifier of an entry point to which you want to map the DN."),
+      entryPointName: z.string().describe("The entryPoint name of the entryPointId."),
+      dialledNumber: z.string().optional().describe("The dialed number(DN) used to map to entry points."),
+      extension: z.string().or(z.number()).optional().describe("The extension used to map to entry points."),
+      routingPrefix: z.string().or(z.number()).optional().describe("The routing prefix is mapped to a location and can be prefixed with an extension."),
+      esn: z.string().or(z.number()).optional().describe("The esn is routing prefix with extension."),
+      routePointId: z.string().optional().describe("The identifier of a route point of WxC which is similar to entry point of WxCC."),
+      defaultAni: z.boolean().optional().describe("The default dial number for the tenant to make outdial calls."),
+      location: z.string().optional().describe("The name of the location as configured on Webex Calling."),
+      regionId: z.string().optional().describe("Specify the telephony region id."),
+      dialledNumberDigits: z.string().optional().describe("Dialed number digits."),
+      version: z.number().int().optional().describe("The version of this resource."),
+    },
+    async ({ id, ...params }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/dial-number/${id}`;
+      const body: IDialedNumberMappingDTO = {
+        ...params,
+        id,
+        extension: params.extension?.toString(),
+        routingPrefix: params.routingPrefix?.toString(),
+        esn: params.esn?.toString(),
+        organizationId: config.orgId
+      } as IDialedNumberMappingDTO;
+
+      try {
+        const response = await fetch(url, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully updated Dialed Number Mapping: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Export_Dial_Plans
+   */
+  server.tool(
+    "Bulk_Export_Dial_Plans",
+    "Export all Dial Plan(s) in a given organization",
+    {
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(10).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/dial-plan/bulk-export?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk Export Dial Plans:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Save_Dial_Plans
+   */
+  server.tool(
+    "Bulk_Save_Dial_Plans",
+    "Create, Update or delete Dial Plan(s) in bulk in a given organization",
+    {
+      items: z.array(z.object({
+        itemIdentifier: z.number().int().describe("Unique item identifier for a bulk operation."),
+        requestAction: z.enum(["SAVE", "DELETE"]).describe("Identifier for action type. Possible values can be SAVE and DELETE."),
+        item: z.object({
+          name: z.string().describe("Enter the name for the dial plan."),
+          regularExpression: z.string().describe("A regular expression specifies the format of the phone number and the characters that you can use while dialing a number."),
+          active: z.boolean().describe("Specify whether the dial plan is active or not"),
+          description: z.string().optional().describe("A short description of the dial plan."),
+          prefix: z.string().optional().describe("(Optional) Enter a prefix that the system automatically adds to the phone number that the agent enters."),
+          strippedChars: z.string().optional().describe("Enter the characters that system removes from the phone number that the agent dials."),
+          id: z.string().optional().describe("ID of this contact center resource. mandatory when updating a resource."),
+          version: z.number().int().optional().describe("The version of this resource."),
+          systemDefault: z.boolean().optional().describe("Indicates whether the created resource is system created or not"),
+        })
+      })).describe("List of items for bulk operation.")
+    },
+    async ({ items }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/dial-plan/bulk`;
+      const body: IBulkRequestDTODialPlan = {
+        items: items.map(item => ({
+          ...item,
+          item: { ...item.item, organizationId: config.orgId } as IDialPlanDTO
+        }))
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok && response.status !== 207) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk save operation completed (Status ${response.status}):\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Create_Dial_Plan
+   */
+  server.tool(
+    "Create_Dial_Plan",
+    "Create a new Dial Plan in a given organization",
+    {
+      name: z.string().describe("Enter the name for the dial plan."),
+      regularExpression: z.string().describe("A regular expression specifies the format of the phone number and the characters that you can use while dialing a number."),
+      active: z.boolean().describe("Specify whether the dial plan is active or not"),
+      description: z.string().optional().describe("A short description of the dial plan."),
+      prefix: z.string().optional().describe("(Optional) Enter a prefix that the system automatically adds to the phone number that the agent enters."),
+      strippedChars: z.string().optional().describe("Enter the characters that system removes from the phone number that the agent dials."),
+      version: z.number().int().optional().describe("The version of this resource."),
+      systemDefault: z.boolean().optional().describe("Indicates whether the created resource is system created or not"),
+    },
+    async (params) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/dial-plan`;
+      const body: IDialPlanDTO = { ...params, organizationId: config.orgId } as IDialPlanDTO;
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully created Dial Plan: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Delete_Dial_Plan
+   */
+  server.tool(
+    "Delete_Dial_Plan",
+    "Delete an existing Dial Plan by ID in a given organization",
+    {
+      id: z.string().describe("Resource ID of the Dial Plan."),
+    },
+    async ({ id }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/dial-plan/${id}`;
+      try {
+        const response = await fetch(url, {
+          method: "DELETE",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "application/json" },
+        });
+        if (!response.ok) {
+          if (response.status === 200) return { content: [{ type: "text", text: `Successfully deleted Dial Plan with ID: ${id}` }] };
+          const data = await response.json();
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully deleted Dial Plan with ID: ${id}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Get_Dial_Plan_by_ID
+   */
+  server.tool(
+    "Get_Dial_Plan_by_ID",
+    "Retrieve an existing Dial Plan by ID in a given organization",
+    {
+      id: z.string().describe("Resource ID of the Dial Plan."),
+    },
+    async ({ id }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/dial-plan/${id}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully retrieved Dial Plan:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Dial_Plans
+   */
+  server.tool(
+    "List_Dial_Plans",
+    "Retrieve a list of Dial Plan(s) in a given organization (v2)",
+    {
+      filter: z.string().optional().describe("Specify a filter based on which the results will be fetched (RSQL syntax)."),
+      attributes: z.string().optional().describe("Specify the attributes to be returned."),
+      search: z.string().optional().describe("Filter data based on the search keyword."),
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ filter, attributes, search, page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (filter) queryParams.append("filter", filter);
+      if (attributes) queryParams.append("attributes", attributes);
+      if (search) queryParams.append("search", search);
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/v2/dial-plan?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        const envelope = data as IResponseEnvelope<IDialPlanDTO>;
+        return { content: [{ type: "text", text: `Retrieved ${envelope.data.length} Dial Plan(s):\n${JSON.stringify(envelope, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Dial_Plan_References
+   */
+  server.tool(
+    "List_Dial_Plan_References",
+    "Retrieve a list of all entities that have reference to an existing Dial Plan by ID",
+    {
+      id: z.string().describe("ID of this contact center resource."),
+      type: z.string().optional().describe("Entity type of the other entity that has a reference to this specific entity."),
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ id, type, page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (type) queryParams.append("type", type);
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/dial-plan/${id}/incoming-references?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Retrieved references for Dial Plan ${id}:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Update_Dial_Plan
+   */
+  server.tool(
+    "Update_Dial_Plan",
+    "Update an existing Dial Plan by ID in a given organization",
+    {
+      id: z.string().describe("Resource ID of the Dial Plan."),
+      name: z.string().describe("Enter the name for the dial plan."),
+      regularExpression: z.string().describe("A regular expression specifies the format of the phone number and the characters that you can use while dialing a number."),
+      active: z.boolean().describe("Specify whether the dial plan is active or not"),
+      description: z.string().optional().describe("A short description of the dial plan."),
+      prefix: z.string().optional().describe("(Optional) Enter a prefix that the system automatically adds to the phone number that the agent enters."),
+      strippedChars: z.string().optional().describe("Enter the characters that system removes from the phone number that the agent dials."),
+      version: z.number().int().optional().describe("The version of this resource."),
+      systemDefault: z.boolean().optional().describe("Indicates whether the created resource is system created or not"),
+    },
+    async ({ id, ...params }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/dial-plan/${id}`;
+      const body: IDialPlanDTO = { ...params, id, organizationId: config.orgId } as IDialPlanDTO;
+
+      try {
+        const response = await fetch(url, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully updated Dial Plan: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Export_Multimedia_Profiles
+   */
+  server.tool(
+    "Bulk_Export_Multimedia_Profiles",
+    "Export all Multimedia Profile(s) in a given organization",
+    {
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/multimedia-profile/bulk-export?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk Export Multimedia Profiles:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Save_Multimedia_Profiles
+   */
+  server.tool(
+    "Bulk_Save_Multimedia_Profiles",
+    "Create, Update or delete Multimedia Profile(s) in bulk in a given organization",
+    {
+      items: z.array(z.object({
+        itemIdentifier: z.number().int().describe("Unique item identifier for a bulk operation."),
+        requestAction: z.enum(["SAVE", "DELETE"]).describe("Identifier for action type. Possible values can be SAVE and DELETE."),
+        item: z.object({
+          name: z.string().describe("Enter the name for the multimedia profile."),
+          blendingMode: z.string().describe("Blending mode (BLENDED, BLENDED_REALTIME, EXCLUSIVE)."),
+          active: z.boolean().describe("Specify whether the multimedia profile is active or not."),
+          blendingModeEnabled: z.boolean().describe("Specify whether the blending mode is enabled or not."),
+          telephony: z.number().int().describe("Upper limit for telephony channel."),
+          chat: z.number().int().describe("Upper limit for chat channel."),
+          email: z.number().int().describe("Upper limit for email channel."),
+          social: z.number().int().describe("Upper limit for social channel."),
+          description: z.string().optional().describe("Enter a description for the multimedia profile."),
+          id: z.string().optional().describe("ID of this contact center resource. Mandatory when updating."),
+          version: z.number().int().optional().describe("The version of this resource."),
+          systemDefault: z.boolean().optional().describe("Indicates whether the created resource is system created or not"),
+          manuallyAssignable: z.object({
+            telephony: z.number().int(),
+            chat: z.number().int(),
+            email: z.number().int(),
+            social: z.number().int(),
+            id: z.string().optional(),
+            version: z.number().int().optional(),
+          }).optional().describe("Upper limits for manually assignable channels."),
+        })
+      })).describe("List of items for bulk operation.")
+    },
+    async ({ items }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/multimedia-profile/bulk`;
+      const body: IBulkRequestDTOMultimediaProfile = {
+        items: items.map(item => ({
+          ...item,
+          item: {
+            ...item.item,
+            organizationId: config.orgId,
+            manuallyAssignable: item.item.manuallyAssignable ? { ...item.item.manuallyAssignable, organizationId: config.orgId } : undefined
+          } as IMultimediaProfileDTO
+        }))
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok && response.status !== 207) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk save operation completed (Status ${response.status}):\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Create_Multimedia_Profile
+   */
+  server.tool(
+    "Create_Multimedia_Profile",
+    "Create a new Multimedia Profile in a given organization",
+    {
+      name: z.string().describe("Enter the name for the multimedia profile."),
+      blendingMode: z.string().describe("Blending mode (BLENDED, BLENDED_REALTIME, EXCLUSIVE)."),
+      active: z.boolean().describe("Specify whether the multimedia profile is active or not."),
+      blendingModeEnabled: z.boolean().describe("Specify whether the blending mode is enabled or not."),
+      telephony: z.number().int().describe("Upper limit for telephony channel."),
+      chat: z.number().int().describe("Upper limit for chat channel."),
+      email: z.number().int().describe("Upper limit for email channel."),
+      social: z.number().int().describe("Upper limit for social channel."),
+      description: z.string().optional().describe("Enter a description for the multimedia profile."),
+      version: z.number().int().optional().describe("The version of this resource."),
+      systemDefault: z.boolean().optional().describe("Indicates whether the created resource is system created or not"),
+      manuallyAssignable: z.object({
+        telephony: z.number().int(),
+        chat: z.number().int(),
+        email: z.number().int(),
+        social: z.number().int(),
+      }).optional().describe("Upper limits for manually assignable channels."),
+    },
+    async (params) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/multimedia-profile`;
+      const body: IMultimediaProfileDTO = {
+        ...params,
+        organizationId: config.orgId,
+        manuallyAssignable: params.manuallyAssignable ? { ...params.manuallyAssignable, organizationId: config.orgId } : undefined
+      } as IMultimediaProfileDTO;
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully created Multimedia Profile: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Delete_Multimedia_Profile
+   */
+  server.tool(
+    "Delete_Multimedia_Profile",
+    "Delete an existing Multimedia Profile by ID in a given organization",
+    {
+      id: z.string().describe("Resource ID of the Multimedia Profile."),
+    },
+    async ({ id }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/multimedia-profile/${id}`;
+      try {
+        const response = await fetch(url, {
+          method: "DELETE",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "application/json" },
+        });
+        if (!response.ok) {
+          if (response.status === 200) return { content: [{ type: "text", text: `Successfully deleted Multimedia Profile with ID: ${id}` }] };
+          const data = await response.json();
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully deleted Multimedia Profile with ID: ${id}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Get_Multimedia_Profile_by_ID
+   */
+  server.tool(
+    "Get_Multimedia_Profile_by_ID",
+    "Retrieve an existing Multimedia Profile by ID in a given organization",
+    {
+      id: z.string().describe("Resource ID of the Multimedia Profile."),
+    },
+    async ({ id }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/multimedia-profile/${id}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully retrieved Multimedia Profile:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Multimedia_Profiles
+   */
+  server.tool(
+    "List_Multimedia_Profiles",
+    "Retrieve a list of Multimedia Profile(s) in a given organization (v2)",
+    {
+      filter: z.string().optional().describe("Specify a filter based on which the results will be fetched (RSQL syntax)."),
+      attributes: z.string().optional().describe("Specify the attributes to be returned."),
+      search: z.string().optional().describe("Filter data based on the search keyword."),
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ filter, attributes, search, page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (filter) queryParams.append("filter", filter);
+      if (attributes) queryParams.append("attributes", attributes);
+      if (search) queryParams.append("search", search);
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/v2/multimedia-profile?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        const envelope = data as IResponseEnvelope<IMultimediaProfileDTO>;
+        return { content: [{ type: "text", text: `Retrieved ${envelope.data.length} Multimedia Profile(s):\n${JSON.stringify(envelope, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Multimedia_Profile_References
+   */
+  server.tool(
+    "List_Multimedia_Profile_References",
+    "Retrieve a list of all entities that have reference to an existing Multimedia Profile by ID",
+    {
+      id: z.string().describe("ID of this contact center resource."),
+      type: z.string().optional().describe("Entity type of the other entity that has a reference to this specific entity."),
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ id, type, page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (type) queryParams.append("type", type);
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/multimedia-profile/${id}/incoming-references?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Retrieved references for Multimedia Profile ${id}:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Purge_Inactive_Multimedia_Profiles
+   */
+  server.tool(
+    "Purge_Inactive_Multimedia_Profiles",
+    "Purge inactive Multimedia Profile(s) older than the configured interval",
+    {
+      nextStartId: z.string().optional().default("").describe("This is the entity ID from which items for the next purge batch with be selected."),
+    },
+    async ({ nextStartId }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (nextStartId) queryParams.append("nextStartId", nextStartId);
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/multimedia-profile/purge-inactive-entities?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify({}),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Purge operation completed:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Update_Multimedia_Profile
+   */
+  server.tool(
+    "Update_Multimedia_Profile",
+    "Update an existing Multimedia Profile by ID in a given organization",
+    {
+      id: z.string().describe("Resource ID of the Multimedia Profile."),
+      name: z.string().describe("Enter the name for the multimedia profile."),
+      blendingMode: z.string().describe("Blending mode (BLENDED, BLENDED_REALTIME, EXCLUSIVE)."),
+      active: z.boolean().describe("Specify whether the multimedia profile is active or not."),
+      blendingModeEnabled: z.boolean().describe("Specify whether the blending mode is enabled or not."),
+      telephony: z.number().int().describe("Upper limit for telephony channel."),
+      chat: z.number().int().describe("Upper limit for chat channel."),
+      email: z.number().int().describe("Upper limit for email channel."),
+      social: z.number().int().describe("Upper limit for social channel."),
+      description: z.string().optional().describe("Enter a description for the multimedia profile."),
+      version: z.number().int().optional().describe("The version of this resource."),
+      systemDefault: z.boolean().optional().describe("Indicates whether the created resource is system created or not"),
+      manuallyAssignable: z.object({
+        telephony: z.number().int(),
+        chat: z.number().int(),
+        email: z.number().int(),
+        social: z.number().int(),
+        id: z.string().optional(),
+        version: z.number().int().optional(),
+      }).optional().describe("Upper limits for manually assignable channels."),
+    },
+    async ({ id, ...params }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/multimedia-profile/${id}`;
+      const body: IMultimediaProfileDTO = {
+        ...params,
+        id,
+        organizationId: config.orgId,
+        manuallyAssignable: params.manuallyAssignable ? { ...params.manuallyAssignable, organizationId: config.orgId } : undefined
+      } as IMultimediaProfileDTO;
+
+      try {
+        const response = await fetch(url, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully updated Multimedia Profile: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Export_Outdial_ANIs
+   */
+  server.tool(
+    "Bulk_Export_Outdial_ANIs",
+    "Export all Outdial ANI(s) in a given organization",
+    {
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(50).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/outdial-ani/bulk-export?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk Export Outdial ANIs:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Save_Outdial_ANI_Entries
+   */
+  server.tool(
+    "Bulk_Save_Outdial_ANI_Entries",
+    "Create, Update or delete Outdial ANI Entry(s) in bulk",
+    {
+      outDialAniId: z.string().describe("Resource ID of the Outdial ANI"),
+      items: z.array(z.object({
+        itemIdentifier: z.number().int().describe("Unique item identifier for a bulk operation."),
+        requestAction: z.enum(["SAVE", "DELETE"]).describe("Identifier for action type. Possible values can be SAVE and DELETE."),
+        item: z.object({
+          name: z.string().describe("Enter a name for the outdial ANI entry."),
+          number: z.string().describe("Enter a valid phone number or valid SIP URI."),
+          id: z.string().optional().describe("ID of this contact center resource. mandatory when updating a resource."),
+          version: z.number().int().optional().describe("The version of this resource."),
+          organizationId: z.string().optional().describe("ID of the contact center organization."),
+        })
+      })).describe("List of items for bulk operation.")
+    },
+    async ({ outDialAniId, items }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/outdial-ani/${outDialAniId}/entry/bulk`;
+      const body: IBulkRequestDTOOutdialAniEntry = {
+        items: items.map(item => ({
+          ...item,
+          item: { ...item.item, organizationId: config.orgId } as IOutdialAniEntryDTO
+        }))
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok && response.status !== 207) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk save operation completed (Status ${response.status}):\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Bulk_Save_Outdial_ANIs
+   */
+  server.tool(
+    "Bulk_Save_Outdial_ANIs",
+    "Create, Update or delete Outdial ANI(s) in bulk in a given organization",
+    {
+      items: z.array(z.object({
+        itemIdentifier: z.number().int().describe("Unique item identifier for a bulk operation."),
+        requestAction: z.enum(["SAVE", "DELETE"]).describe("Identifier for action type. Possible values can be SAVE and DELETE."),
+        item: z.object({
+          name: z.string().describe("Enter a name for the outdial ANI."),
+          description: z.string().optional().describe("(Optional) Enter a description for the outdial ANI."),
+          id: z.string().optional().describe("ID of this contact center resource. mandatory when updating a resource."),
+          version: z.number().int().optional().describe("The version of this resource."),
+          organizationId: z.string().optional().describe("ID of the contact center organization."),
+          outdialANIEntries: z.array(z.object({
+            name: z.string().describe("Enter a name for the outdial ANI entry."),
+            number: z.string().describe("Enter a valid phone number or valid SIP URI."),
+            id: z.string().optional().describe("ID of this contact center resource. mandatory when updating a resource."),
+            version: z.number().int().optional().describe("The version of this resource."),
+            organizationId: z.string().optional().describe("ID of the contact center organization."),
+          })).optional().describe("List of outdial ANI entries."),
+        })
+      })).describe("List of items for bulk operation.")
+    },
+    async ({ items }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/outdial-ani/bulk`;
+      const body: IBulkRequestDTOOutdialAni = {
+        items: items.map(item => ({
+          ...item,
+          item: {
+            ...item.item,
+            organizationId: config.orgId,
+            outdialANIEntries: item.item.outdialANIEntries?.map(entry => ({ ...entry, organizationId: config.orgId } as IOutdialAniEntryDTO))
+          } as IOutdialAniDTO
+        }))
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok && response.status !== 207) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Bulk save operation completed (Status ${response.status}):\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Create_Outdial_ANI_Entry
+   */
+  server.tool(
+    "Create_Outdial_ANI_Entry",
+    "Create a new Outdial ANI Entry in a given organization",
+    {
+      outDialAniId: z.string().describe("Resource ID of the Outdial ANI"),
+      name: z.string().describe("Enter a name for the outdial ANI entry."),
+      number: z.string().describe("Enter a valid phone number or valid SIP URI."),
+      version: z.number().int().optional().describe("The version of this resource."),
+    },
+    async ({ outDialAniId, ...params }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/outdial-ani/${outDialAniId}/entry`;
+      const body: IOutdialAniEntryDTO = { ...params, organizationId: config.orgId } as IOutdialAniEntryDTO;
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully created Outdial ANI Entry: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Create_Outdial_ANI
+   */
+  server.tool(
+    "Create_Outdial_ANI",
+    "Create a new Outdial ANI in a given organization",
+    {
+      name: z.string().describe("Enter a name for the outdial ANI."),
+      description: z.string().optional().describe("(Optional) Enter a description for the outdial ANI."),
+      version: z.number().int().optional().describe("The version of this resource."),
+      outdialANIEntries: z.array(z.object({
+        name: z.string().describe("Enter a name for the outdial ANI entry."),
+        number: z.string().describe("Enter a valid phone number or valid SIP URI."),
+      })).optional().describe("List of outdial ANI entries."),
+    },
+    async (params) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/outdial-ani`;
+      const body: IOutdialAniDTO = {
+        ...params,
+        organizationId: config.orgId,
+        outdialANIEntries: params.outdialANIEntries?.map(entry => ({ ...entry, organizationId: config.orgId } as IOutdialAniEntryDTO))
+      } as IOutdialAniDTO;
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully created Outdial ANI: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Delete_Outdial_ANI
+   */
+  server.tool(
+    "Delete_Outdial_ANI",
+    "Delete an existing Outdial ANI by ID in a given organization",
+    {
+      id: z.string().describe("Resource ID of the Outdial ANI."),
+    },
+    async ({ id }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/outdial-ani/${id}`;
+      try {
+        const response = await fetch(url, {
+          method: "DELETE",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "application/json" },
+        });
+        if (!response.ok) {
+          if (response.status === 204) return { content: [{ type: "text", text: `Successfully deleted Outdial ANI with ID: ${id}` }] };
+          const data = await response.json();
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully deleted Outdial ANI with ID: ${id}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Delete_Outdial_ANI_Entry
+   */
+  server.tool(
+    "Delete_Outdial_ANI_Entry",
+    "Delete an existing Outdial ANI Entry by ID in a given organization",
+    {
+      outDialAniId: z.string().describe("Resource ID of the Outdial ANI"),
+      id: z.string().describe("ID of this contact center resource."),
+    },
+    async ({ outDialAniId, id }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/outdial-ani/${outDialAniId}/entry/${id}`;
+      try {
+        const response = await fetch(url, {
+          method: "DELETE",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "application/json" },
+        });
+        if (!response.ok) {
+          if (response.status === 200) return { content: [{ type: "text", text: `Successfully deleted Outdial ANI Entry with ID: ${id}` }] };
+          const data = await response.json();
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully deleted Outdial ANI Entry with ID: ${id}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Get_Outdial_ANI_by_ID
+   */
+  server.tool(
+    "Get_Outdial_ANI_by_ID",
+    "Retrieve an existing Outdial ANI by ID in a given organization",
+    {
+      id: z.string().describe("Resource ID of the Outdial ANI."),
+    },
+    async ({ id }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/outdial-ani/${id}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully retrieved Outdial ANI:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Get_Outdial_ANI_Entry_by_ID
+   */
+  server.tool(
+    "Get_Outdial_ANI_Entry_by_ID",
+    "Retrieve an existing Outdial ANI Entry by ID in a given organization",
+    {
+      outDialAniId: z.string().describe("Resource ID of the Outdial ANI"),
+      id: z.string().describe("ID of this contact center resource."),
+    },
+    async ({ outDialAniId, id }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/outdial-ani/${outDialAniId}/entry/${id}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully retrieved Outdial ANI Entry:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Outdial_ANI_Entries
+   */
+  server.tool(
+    "List_Outdial_ANI_Entries",
+    "Retrieve a list of Outdial ANI Entry(s) in a given organization (v2)",
+    {
+      outDialAniId: z.string().describe("Resource ID of the Outdial ANI"),
+      filter: z.string().optional().describe("Specify a filter based on which the results will be fetched (RSQL syntax)."),
+      attributes: z.string().optional().describe("Specify the attributes to be returned."),
+      search: z.string().optional().describe("Filter data based on the search keyword."),
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ outDialAniId, filter, attributes, search, page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (filter) queryParams.append("filter", filter);
+      if (attributes) queryParams.append("attributes", attributes);
+      if (search) queryParams.append("search", search);
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/v2/outdial-ani/${outDialAniId}/entry?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        const envelope = data as IResponseEnvelope<IOutdialAniEntryDTO>;
+        return { content: [{ type: "text", text: `Retrieved ${envelope.data.length} Outdial ANI Entry(s):\n${JSON.stringify(envelope, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Outdial_ANIs
+   */
+  server.tool(
+    "List_Outdial_ANIs",
+    "Retrieve a list of Outdial ANI(s) in a given organization (v2)",
+    {
+      filter: z.string().optional().describe("Specify a filter based on which the results will be fetched (RSQL syntax)."),
+      attributes: z.string().optional().describe("Specify the attributes to be returned."),
+      search: z.string().optional().describe("Filter data based on the search keyword."),
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+      singleObjectResponse: z.boolean().optional().default(false).describe("Specifiy whether to include array fields in the response."),
+    },
+    async ({ filter, attributes, search, page, pageSize, singleObjectResponse }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (filter) queryParams.append("filter", filter);
+      if (attributes) queryParams.append("attributes", attributes);
+      if (search) queryParams.append("search", search);
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+      queryParams.append("singleObjectResponse", singleObjectResponse.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/v2/outdial-ani?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        const envelope = data as IResponseEnvelope<IOutdialAniDTO>;
+        return { content: [{ type: "text", text: `Retrieved ${envelope.data.length} Outdial ANI(s):\n${JSON.stringify(envelope, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: List_Outdial_ANI_References
+   */
+  server.tool(
+    "List_Outdial_ANI_References",
+    "Retrieve a list of all entities that have reference to an existing Outdial ANI by ID",
+    {
+      id: z.string().describe("ID of this contact center resource."),
+      type: z.string().optional().describe("Entity type of the other entity that has a reference to this specific entity."),
+      page: z.number().optional().default(0).describe("Defines the number of displayed page (starts from 0)."),
+      pageSize: z.number().optional().default(100).describe("Defines the number of items to be displayed on a page."),
+    },
+    async ({ id, type, page, pageSize }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const queryParams = new URLSearchParams();
+      if (type) queryParams.append("type", type);
+      queryParams.append("page", page.toString());
+      queryParams.append("pageSize", pageSize.toString());
+
+      const url = `${config.baseUrl}/organization/${config.orgId}/outdial-ani/${id}/incoming-references?${queryParams.toString()}`;
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${config.webexToken}`, "Accept": "*/*" },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Retrieved references for Outdial ANI ${id}:\n${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Update_Outdial_ANI
+   */
+  server.tool(
+    "Update_Outdial_ANI",
+    "Update an existing Outdial ANI by ID in a given organization",
+    {
+      id: z.string().describe("Resource ID of the Outdial ANI."),
+      name: z.string().describe("Enter a name for the outdial ANI."),
+      description: z.string().optional().describe("(Optional) Enter a description for the outdial ANI."),
+      version: z.number().int().optional().describe("The version of this resource."),
+      outdialANIEntries: z.array(z.object({
+        name: z.string().describe("Enter a name for the outdial ANI entry."),
+        number: z.string().describe("Enter a valid phone number or valid SIP URI."),
+        id: z.string().optional().describe("ID of this contact center resource. mandatory when updating a resource."),
+        version: z.number().int().optional().describe("The version of this resource."),
+        organizationId: z.string().optional().describe("ID of the contact center organization."),
+      })).optional().describe("List of outdial ANI entries."),
+    },
+    async ({ id, ...params }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/outdial-ani/${id}`;
+      const body: IOutdialAniDTO = {
+        ...params,
+        id,
+        organizationId: config.orgId,
+        outdialANIEntries: params.outdialANIEntries?.map(entry => ({ ...entry, organizationId: config.orgId } as IOutdialAniEntryDTO))
+      } as IOutdialAniDTO;
+
+      try {
+        const response = await fetch(url, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully updated Outdial ANI: ${JSON.stringify(data, null, 2)}` }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+      }
+    }
+  );
+
+  /**
+   * Tool: Update_Outdial_ANI_Entry
+   */
+  server.tool(
+    "Update_Outdial_ANI_Entry",
+    "Update an existing Outdial ANI Entry by ID in a given organization",
+    {
+      outDialAniId: z.string().describe("Resource ID of the Outdial ANI"),
+      id: z.string().describe("ID of this contact center resource."),
+      name: z.string().describe("Enter a name for the outdial ANI entry."),
+      number: z.string().describe("Enter a valid phone number or valid SIP URI."),
+      version: z.number().int().optional().describe("The version of this resource."),
+    },
+    async ({ outDialAniId, id, ...params }) => {
+      if (!config) {
+        return { content: [{ type: "text", text: "Error: Server not properly configured." }], isError: true };
+      }
+      const url = `${config.baseUrl}/organization/${config.orgId}/outdial-ani/${outDialAniId}/entry/${id}`;
+      const body: IOutdialAniEntryDTO = { ...params, id, organizationId: config.orgId } as IOutdialAniEntryDTO;
+
+      try {
+        const response = await fetch(url, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${config.webexToken}`,
+            "Content-Type": "application/json",
+            "Accept": "*/*",
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const errorData = data as IApiErrorResponse;
+          return { content: [{ type: "text", text: `Error ${response.status}: ${errorData.error?.reason || "Unknown error"}\nDetails: ${JSON.stringify(errorData.error?.message || data)}` }], isError: true };
+        }
+        return { content: [{ type: "text", text: `Successfully updated Outdial ANI Entry: ${JSON.stringify(data, null, 2)}` }] };
       } catch (error) {
         return { content: [{ type: "text", text: `Network or unexpected error: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
       }

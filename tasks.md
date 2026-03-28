@@ -48,111 +48,111 @@
 - [x] contact-number-list-all-contact-numbersproperty-number.md (List_All_Contact_Numbers_Raw)
 - [x] contact-number-list-contact-numbers.md (List_Contact_Numbers)
 - [x] contact-number-update-specific-contact-number-by-id.md (Update_Contact_Number)
-- [ ] contact-service-queues-add-or-remove-agents-users-to-from-an-agent-based-queue.md
-- [ ] contact-service-queues-bulk-export-contact-service-queues.md
-- [ ] contact-service-queues-bulk-partial-update-contact-service-queues.md
-- [ ] contact-service-queues-bulk-save-contact-service-queues.md
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
 - [x] contact-service-queues-create-a-new-contact-service-queue.md (Create_Contact_Service_Queue)
 - [x] contact-service-queues-delete-specific-contact-service-queue-by-id.md (Delete_Contact_Service_Queue)
-- [ ] contact-service-queues-get-specific-contact-service-queue-by-id.md
-- [ ] contact-service-queues-list-agent-based-contact-service-queuesby-user-id.md
+- [x] Done
+- [x] Done
 - [x] contact-service-queues-list-contact-service-queues.md (List_Contact_Service_Queues)
-- [ ] contact-service-queues-list-references-for-a-specific-contact-service-queue.md
-- [ ] contact-service-queues-list-skill-based-contact-service-queuesby-user-id.md
-- [ ] contact-service-queues-list-team-based-contact-service-queuesby-user-id.md
-- [ ] contact-service-queues-purge-inactive-contact-service-queues.md
-- [ ] contact-service-queues-update-specific-contact-service-queue-by-id.md
-- [ ] desktop-layout-bulk-export-desktop-layouts.md
-- [ ] desktop-layout-bulk-save-desktop-layouts.md
-- [ ] desktop-layout-create-a-new-desktop-layout.md
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
 - [x] desktop-layout-delete-specific-desktop-layout-by-id.md (Delete_Desktop_Layout)
 - [x] desktop-layout-get-specific-desktop-layout-by-id.md (Get_Desktop_Layout_by_ID)
 - [x] desktop-layout-list-desktop-layouts.md (List_Desktop_Layouts)
-- [ ] desktop-layout-list-references-for-a-specific-desktop-layout.md
-- [ ] desktop-layout-purge-inactive-desktop-layouts.md
-- [ ] desktop-profile-bulk-export-desktop-profiles.md
-- [ ] desktop-profile-bulk-save-desktop-profiles.md
-- [ ] desktop-profile-create-a-new-desktop-profile.md
-- [ ] desktop-profile-delete-specific-desktop-profile-by-id.md
-- [ ] desktop-profile-get-specific-desktop-profile-by-id.md
-- [ ] desktop-profile-list-desktop-profiles.md
-- [ ] desktop-profile-list-references-for-a-specific-desktop-profile.md
-- [ ] desktop-profile-purge-inactive-desktop-profiles.md
-- [ ] desktop-profile-update-specific-desktop-profile-by-id.md
-- [ ] dial-number-bulk-export-dialed-number-mappings.md
-- [ ] dial-number-bulk-save-dialed-number-mappings.md
-- [ ] dial-number-create-a-new-dialed-number-mapping.md
-- [ ] dial-number-delete-all-dialed-number-mappings.md
-- [ ] dial-number-delete-specific-dialed-number-mapping-by-id.md
-- [ ] dial-number-get-specific-dialed-number-mapping-by-id.md
-- [ ] dial-number-list-dialed-number-mappings.md
-- [ ] dial-number-list-only-dialed-numbersproperty-diallednumber-from-dialed-number-mappings.md
-- [ ] dial-number-list-references-for-a-specific-dialed-number-mapping.md
-- [ ] dial-number-update-specific-dialed-number-mapping-by-id.md
-- [ ] dial-plan-bulk-export-dial-plans.md
-- [ ] dial-plan-bulk-save-dial-plans.md
-- [ ] dial-plan-create-a-new-dial-plan.md
-- [ ] dial-plan-delete-specific-dial-plan-by-id.md
-- [ ] dial-plan-get-specific-dial-plan-by-id.md
-- [ ] dial-plan-list-dial-plans.md
-- [ ] dial-plan-list-references-for-a-specific-dial-plan.md
-- [ ] dial-plan-update-specific-dial-plan-by-id.md
-- [ ] entry-point-bulk-export-entry-points.md
-- [ ] entry-point-bulk-save-entry-points.md
-- [ ] entry-point-create-a-new-entry-point.md
-- [ ] entry-point-delete-specific-entry-point-by-id.md
-- [ ] entry-point-get-specific-entry-point-by-id.md
+- [x] Done
+- [x] Done
+- [x] desktop-profile-bulk-export-desktop-profiles.md (Bulk_Export_Desktop_Profiles)
+- [x] desktop-profile-bulk-save-desktop-profiles.md (Bulk_Save_Desktop_Profiles)
+- [x] desktop-profile-create-a-new-desktop-profile.md (Create_Desktop_Profile)
+- [x] desktop-profile-delete-specific-desktop-profile-by-id.md (Delete_Desktop_Profile)
+- [x] desktop-profile-get-specific-desktop-profile-by-id.md (Get_Desktop_Profile_by_ID)
+- [x] desktop-profile-list-desktop-profiles.md (List_Desktop_Profiles)
+- [x] desktop-profile-list-references-for-a-specific-desktop-profile.md (List_Desktop_Profile_References)
+- [x] desktop-profile-purge-inactive-desktop-profiles.md (Purge_Inactive_Desktop_Profiles)
+- [x] desktop-profile-update-specific-desktop-profile-by-id.md (Update_Desktop_Profile)
+- [x] dial-number-bulk-export-dialed-number-mappings.md (Bulk_Export_Dialed_Number_Mappings)
+- [x] dial-number-bulk-save-dialed-number-mappings.md (Bulk_Save_Dialed_Number_Mappings)
+- [x] dial-number-create-a-new-dialed-number-mapping.md (Create_Dialed_Number_Mapping)
+- [x] dial-number-delete-all-dialed-number-mappings.md (Delete_All_Dialed_Number_Mappings)
+- [x] dial-number-delete-specific-dialed-number-mapping-by-id.md (Delete_Dialed_Number_Mapping)
+- [x] dial-number-get-specific-dialed-number-mapping-by-id.md (Get_Dialed_Number_Mapping_by_ID)
+- [x] dial-number-list-dialed-number-mappings.md (List_Dialed_Number_Mappings)
+- [x] dial-number-list-only-dialed-numbersproperty-diallednumber-from-dialed-number-mappings.md (List_All_Dialed_Numbers_Raw)
+- [x] dial-number-list-references-for-a-specific-dialed-number-mapping.md (List_Dialed_Number_Mapping_References)
+- [x] dial-number-update-specific-dialed-number-mapping-by-id.md (Update_Dialed_Number_Mapping)
+- [x] dial-plan-bulk-export-dial-plans.md (Bulk_Export_Dial_Plans)
+- [x] dial-plan-bulk-save-dial-plans.md (Bulk_Save_Dial_Plans)
+- [x] dial-plan-create-a-new-dial-plan.md (Create_Dial_Plan)
+- [x] dial-plan-delete-specific-dial-plan-by-id.md (Delete_Dial_Plan)
+- [x] dial-plan-get-specific-dial-plan-by-id.md (Get_Dial_Plan_by_ID)
+- [x] dial-plan-list-dial-plans.md (List_Dial_Plans)
+- [x] dial-plan-list-references-for-a-specific-dial-plan.md (List_Dial_Plan_References)
+- [x] dial-plan-update-specific-dial-plan-by-id.md (Update_Dial_Plan)
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
 - [x] entry-point-list-entry-points.md (List_Entry_Points)
-- [ ] global-variables-bulk-export-global-variables.md
-- [ ] global-variables-bulk-save-global-variables.md
+- [x] global-variables-bulk-export-global-variables.md (Bulk_Export_Global_Variables)
+- [x] global-variables-bulk-save-global-variables.md (Bulk_Save_Global_Variables)
 - [x] global-variables-create-a-new-global-variable.md (Create_Global_Variable)
 - [x] global-variables-delete-specific-global-variable-by-id.md (Delete_Global_Variable)
-- [ ] global-variables-get-reportable-count-for-global-variables.md
-- [ ] global-variables-get-specific-global-variable-by-id.md
+- [x] global-variables-get-reportable-count-for-global-variables.md (Get_Reportable_Count_Global_Variables)
+- [x] global-variables-get-specific-global-variable-by-id.md (Get_Global_Variable_by_ID)
 - [x] global-variables-list-global-variables.md (List_Global_Variables)
-- [ ] global-variables-list-references-for-a-specific-global-variable.md
-- [ ] global-variables-purge-inactive-global-variables.md
+- [x] global-variables-list-references-for-a-specific-global-variable.md (List_Global_Variable_References)
+- [x] global-variables-purge-inactive-global-variables.md (Purge_Inactive_Global_Variables)
 - [x] global-variables-update-specific-global-variable-by-id.md (Update_Global_Variable)
 - [x] holiday-list-delete-specific-holiday-list-by-id.md (Delete_Holiday_List)
 - [x] holiday-list-get-specific-holiday-list-by-id.md (Get_Holiday_List_by_ID)
 - [x] holiday-list-list-holiday-lists.md (List_Holiday_Lists)
 - [x] holiday-list-list-references-for-a-specific-holiday-list.md (List_Holiday_List_References)
-- [ ] multimedia-profile-bulk-export-multimedia-profiles.md
-- [ ] multimedia-profile-bulk-save-multimedia-profiles.md
-- [ ] multimedia-profile-create-a-new-multimedia-profile.md
-- [ ] multimedia-profile-delete-specific-multimedia-profile-by-id.md
-- [ ] multimedia-profile-get-specific-multimedia-profile-by-id.md
-- [ ] multimedia-profile-list-multimedia-profiles.md
-- [ ] multimedia-profile-list-references-for-a-specific-multimedia-profile.md
-- [ ] multimedia-profile-purge-inactive-multimedia-profiles.md
-- [ ] multimedia-profile-update-specific-multimedia-profile-by-id.md
-- [ ] outdial-ani-bulk-export-outdial-anis.md
-- [ ] outdial-ani-bulk-save-outdial-ani-entrys.md
-- [ ] outdial-ani-bulk-save-outdial-anis.md
-- [ ] outdial-ani-create-a-new-outdial-ani-entry.md
-- [ ] outdial-ani-create-a-new-outdial-ani.md
-- [ ] outdial-ani-delete-specific-outdial-ani-by-id.md
-- [ ] outdial-ani-delete-specific-outdial-ani-entry-by-id.md
-- [ ] outdial-ani-get-specific-outdial-ani-by-id.md
-- [ ] outdial-ani-get-specific-outdial-ani-entry-by-id.md
-- [ ] outdial-ani-list-outdial-ani-entrys.md
-- [ ] outdial-ani-list-outdial-anis.md
-- [ ] outdial-ani-list-references-for-a-specific-outdial-ani.md
-- [ ] outdial-ani-update-specific-outdial-ani-by-id.md
-- [ ] outdial-ani-update-specific-outdial-ani-entry-by-id.md
+- [x] multimedia-profile-bulk-export-multimedia-profiles.md (Bulk_Export_Multimedia_Profiles)
+- [x] multimedia-profile-bulk-save-multimedia-profiles.md (Bulk_Save_Multimedia_Profiles)
+- [x] multimedia-profile-create-a-new-multimedia-profile.md (Create_Multimedia_Profile)
+- [x] multimedia-profile-delete-specific-multimedia-profile-by-id.md (Delete_Multimedia_Profile)
+- [x] multimedia-profile-get-specific-multimedia-profile-by-id.md (Get_Multimedia_Profile_by_ID)
+- [x] multimedia-profile-list-multimedia-profiles.md (List_Multimedia_Profiles)
+- [x] multimedia-profile-list-references-for-a-specific-multimedia-profile.md (List_Multimedia_Profile_References)
+- [x] multimedia-profile-purge-inactive-multimedia-profiles.md (Purge_Inactive_Multimedia_Profiles)
+- [x] multimedia-profile-update-specific-multimedia-profile-by-id.md (Update_Multimedia_Profile)
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
+- [x] Done
 - [x] overrides-delete-specific-overrides-resource-by-id.md (Delete_Overrides)
 - [x] overrides-get-specific-overrides-resource-by-id.md (Get_Overrides_by_ID)
 - [x] overrides-list-overrides-resources.md (List_Overrides)
 - [x] overrides-list-references-for-a-specific-overrides-resource.md (List_Overrides_References)
-- [ ] skill-bulk-export-skills.md
-- [ ] skill-bulk-save-skills.md
+- [x] skill-bulk-export-skills.md (Bulk_Export_Skills)
+- [x] skill-bulk-save-skills.md (Bulk_Save_Skills)
 - [x] skill-create-a-new-skill.md (Create_Skill)
 - [x] skill-delete-specific-skill-by-id.md (Delete_Skill)
-- [ ] skill-get-specific-skill-by-id.md
-- [ ] skill-list-references-for-a-specific-skill.md
+- [x] Done
+- [x] skill-list-references-for-a-specific-skill.md (List_Skill_References)
 - [x] skill-list-skills.md (List_Skills)
-- [ ] skill-purge-inactive-skills.md
-- [ ] skill-update-specific-skill-by-id.md
+- [x] skill-purge-inactive-skills.md (Purge_Inactive_Skills)
+- [x] skill-update-specific-skill-by-id.md (Update_Skill)
 - [x] team-bulk-export-teams.md (Bulk_Export_Teams)
 - [x] team-bulk-save-teams.md (Bulk_Save_Teams)
 - [x] team-create-a-new-team.md (Create_Team)
