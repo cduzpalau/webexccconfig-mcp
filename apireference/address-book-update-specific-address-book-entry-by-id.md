@@ -1,0 +1,933 @@
+[Home](https://developer.webex.com/)/[Address Book](https://developer.webex.com/webex-contact-center/docs/api/v1/address-book)/Update specific Address Book Entry by ID
+
+Webex Contact Center
+
+Version 1
+
+Address Book
+
+# Update specific Address Book Entry by ID
+
+**Operation Id:** updateConfig\_31
+
+**Description:**
+
+Update an existing Address Book Entry by ID in a given organization.
+
+PUT/organization/ **{orgid}/address-book/{addressBookId}/entry/{id}**
+
+## Request Parameters
+
+#### Path
+
+orgidrequiredstring
+
+Organization ID to be used for this operation. The specified security token must have permission to interact with the organization.
+
+example = "2f9eecc5-0472-4549-9a83-2afdae0d4ba1"
+
+addressBookIdrequiredstring
+
+Resource ID of the Address Book
+
+example = "af9eecc5-0472-4549-9a83-2afdae0d4ba0"
+
+idrequiredstring
+
+Resource ID of the Address Book Entry
+
+example = "af9eecc5-0472-4549-9a83-2afdae0d4ba0"
+
+#### Request body
+
+Schema DefinitionExample Body
+
+- -AddressBookEntryDTO
+
+
+
+
+
+  - version:integer
+
+
+    The version of this resource. For a newly created resource, it will be 0 unless specified otherwise.
+
+  - id:string
+
+
+    ID of this contact center resource. It should not be specified when creating a new resource. However, it is mandatory when updating a resource.
+
+  - name\*:string
+
+
+    A name for the address book entry.
+
+  - number\*:string
+
+
+    The phone number for the entry.
+
+  - organizationId:string
+
+
+    ID of the contact center organization. It is required to define for the following operations - All bulk save operations
+
+```json
+{
+    "organizationId": "f53c8b54-46ca-43f6-ba05-08426a46e23d",
+    "id": "93912f11-6017-404b-bf14-5331890b1797",
+    "version": 1,
+    "name": "James Bond",
+    "number": "+14033212"
+}
+```
+
+## Responses
+
+Status: 200
+
+OK
+
+Schema DefinitionExample Body
+
+- -AddressBookEntryDTO
+
+
+
+
+
+  - createdTime:integerreadOnly
+
+
+    Creation time(in epoch millis) of this resource.
+
+  - lastUpdatedTime:integerreadOnly
+
+
+    Time(in epoch millis) when this resource was last updated.
+
+  - version:integer
+
+
+    The version of this resource. For a newly created resource, it will be 0 unless specified otherwise.
+
+  - id:string
+
+
+    ID of this contact center resource. It should not be specified when creating a new resource. However, it is mandatory when updating a resource.
+
+  - name\*:string
+
+
+    A name for the address book entry.
+
+  - number\*:string
+
+
+    The phone number for the entry.
+
+  - organizationId:string
+
+
+    ID of the contact center organization. It is required to define for the following operations - All bulk save operations
+
+```json
+{
+    "organizationId": "f53c8b54-46ca-43f6-ba05-08426a46e23d",
+    "id": "93912f11-6017-404b-bf14-5331890b1797",
+    "version": 1,
+    "name": "James Bond",
+    "number": "+14033212",
+    "createdTime": 1617536244000,
+    "lastUpdatedTime": 1617536244000
+}
+```
+
+Status: 400
+
+The request was invalid and cannot be served. An accompanying error message will explain further
+
+Schema DefinitionExample Body
+
+- -ApiErrorResponse
+
+
+
+
+
+  - trackingId:string
+
+
+    An opaque identifier for mapping protocol failures to service internal codes.
+
+
+
+    When specified in a request, it can be used for co-relating events across services
+
+  - +error:ErrorDetails
+
+
+    Error description..
+
+
+
+
+    - key:string
+
+
+      An application defined error code.
+
+    - reason:string
+
+
+      Reason for the failure.
+
+    - +message:OperationError\[\]
+
+      - description:string
+
+
+        A human readable explanation for the occurrence of an error
+
+      - entity:string
+
+
+        entity
+
+      - +references:EntityInfo\[\]
+
+        - version:integer
+
+        - createdDate:string
+
+        - id:string
+
+
+          id
+
+        - lastModifiedDate:string
+
+        - name:string
+
+
+          name
+
+        - additionalAttributes:object
+
+
+          A map containing additional attributes of entity where both the key and value are Strings.
+
+```json
+{
+    "trackingId": "ccconfig_c1a4fcef-aee2-4dea-8977-29f594760552",
+    "error": {
+        "key": "4xx/5xx",
+        "message": [\
+            {\
+                "description": "siteId: not found for given orgId.",\
+                "entity": "string",\
+                "references": [\
+                    {\
+                        "id": "string",\
+                        "name": "string"\
+                    }\
+                ]\
+            }\
+        ],
+        "reason": "dependency exists"
+    }
+}
+```
+
+Status: 401
+
+Unauthorized Operation
+
+Schema DefinitionExample Body
+
+- -ApiErrorResponse
+
+
+
+
+
+  - trackingId:string
+
+
+    An opaque identifier for mapping protocol failures to service internal codes.
+
+
+
+    When specified in a request, it can be used for co-relating events across services
+
+  - +error:ErrorDetails
+
+
+    Error description..
+
+
+
+
+    - key:string
+
+
+      An application defined error code.
+
+    - reason:string
+
+
+      Reason for the failure.
+
+    - +message:OperationError\[\]
+
+      - description:string
+
+
+        A human readable explanation for the occurrence of an error
+
+      - entity:string
+
+
+        entity
+
+      - +references:EntityInfo\[\]
+
+        - version:integer
+
+        - createdDate:string
+
+        - id:string
+
+
+          id
+
+        - lastModifiedDate:string
+
+        - name:string
+
+
+          name
+
+        - additionalAttributes:object
+
+
+          A map containing additional attributes of entity where both the key and value are Strings.
+
+```json
+{
+    "trackingId": "ccconfig_c1a4fcef-aee2-4dea-8977-29f594760552",
+    "error": {
+        "key": "4xx/5xx",
+        "message": [\
+            {\
+                "description": "siteId: not found for given orgId.",\
+                "entity": "string",\
+                "references": [\
+                    {\
+                        "id": "string",\
+                        "name": "string"\
+                    }\
+                ]\
+            }\
+        ],
+        "reason": "dependency exists"
+    }
+}
+```
+
+Status: 403
+
+Operation is forbidden
+
+Schema DefinitionExample Body
+
+- -ApiErrorResponse
+
+
+
+
+
+  - trackingId:string
+
+
+    An opaque identifier for mapping protocol failures to service internal codes.
+
+
+
+    When specified in a request, it can be used for co-relating events across services
+
+  - +error:ErrorDetails
+
+
+    Error description..
+
+
+
+
+    - key:string
+
+
+      An application defined error code.
+
+    - reason:string
+
+
+      Reason for the failure.
+
+    - +message:OperationError\[\]
+
+      - description:string
+
+
+        A human readable explanation for the occurrence of an error
+
+      - entity:string
+
+
+        entity
+
+      - +references:EntityInfo\[\]
+
+        - version:integer
+
+        - createdDate:string
+
+        - id:string
+
+
+          id
+
+        - lastModifiedDate:string
+
+        - name:string
+
+
+          name
+
+        - additionalAttributes:object
+
+
+          A map containing additional attributes of entity where both the key and value are Strings.
+
+```json
+{
+    "trackingId": "ccconfig_c1a4fcef-aee2-4dea-8977-29f594760552",
+    "error": {
+        "key": "4xx/5xx",
+        "message": [\
+            {\
+                "description": "siteId: not found for given orgId.",\
+                "entity": "string",\
+                "references": [\
+                    {\
+                        "id": "string",\
+                        "name": "string"\
+                    }\
+                ]\
+            }\
+        ],
+        "reason": "dependency exists"
+    }
+}
+```
+
+Status: 404
+
+Resource not found or URI is invalid
+
+Schema DefinitionExample Body
+
+- -ApiErrorResponse
+
+
+
+
+
+  - trackingId:string
+
+
+    An opaque identifier for mapping protocol failures to service internal codes.
+
+
+
+    When specified in a request, it can be used for co-relating events across services
+
+  - +error:ErrorDetails
+
+
+    Error description..
+
+
+
+
+    - key:string
+
+
+      An application defined error code.
+
+    - reason:string
+
+
+      Reason for the failure.
+
+    - +message:OperationError\[\]
+
+      - description:string
+
+
+        A human readable explanation for the occurrence of an error
+
+      - entity:string
+
+
+        entity
+
+      - +references:EntityInfo\[\]
+
+        - version:integer
+
+        - createdDate:string
+
+        - id:string
+
+
+          id
+
+        - lastModifiedDate:string
+
+        - name:string
+
+
+          name
+
+        - additionalAttributes:object
+
+
+          A map containing additional attributes of entity where both the key and value are Strings.
+
+```json
+{
+    "trackingId": "ccconfig_c1a4fcef-aee2-4dea-8977-29f594760552",
+    "error": {
+        "key": "4xx/5xx",
+        "message": [\
+            {\
+                "description": "siteId: not found for given orgId.",\
+                "entity": "string",\
+                "references": [\
+                    {\
+                        "id": "string",\
+                        "name": "string"\
+                    }\
+                ]\
+            }\
+        ],
+        "reason": "dependency exists"
+    }
+}
+```
+
+Status: 412
+
+Resource referred in other entity(s). Please get all the reference entities info by invoking Get incoming-references api.
+
+Schema DefinitionExample Body
+
+- -ApiErrorResponse
+
+
+
+
+
+  - trackingId:string
+
+
+    An opaque identifier for mapping protocol failures to service internal codes.
+
+
+
+    When specified in a request, it can be used for co-relating events across services
+
+  - +error:ErrorDetails
+
+
+    Error description..
+
+
+
+
+    - key:string
+
+
+      An application defined error code.
+
+    - reason:string
+
+
+      Reason for the failure.
+
+    - +message:OperationError\[\]
+
+      - description:string
+
+
+        A human readable explanation for the occurrence of an error
+
+      - entity:string
+
+
+        entity
+
+      - +references:EntityInfo\[\]
+
+        - version:integer
+
+        - createdDate:string
+
+        - id:string
+
+
+          id
+
+        - lastModifiedDate:string
+
+        - name:string
+
+
+          name
+
+        - additionalAttributes:object
+
+
+          A map containing additional attributes of entity where both the key and value are Strings.
+
+```json
+{
+    "trackingId": "ccconfig_c1a4fcef-aee2-4dea-8977-29f594760552",
+    "error": {
+        "key": "4xx/5xx",
+        "message": [\
+            {\
+                "description": "siteId: not found for given orgId.",\
+                "entity": "string",\
+                "references": [\
+                    {\
+                        "id": "string",\
+                        "name": "string"\
+                    }\
+                ]\
+            }\
+        ],
+        "reason": "dependency exists"
+    }
+}
+```
+
+Status: 429
+
+Too many requests have been sent in a given amount of time and the request has been rate limited
+
+Schema DefinitionExample Body
+
+- -ApiErrorResponse
+
+
+
+
+
+  - trackingId:string
+
+
+    An opaque identifier for mapping protocol failures to service internal codes.
+
+
+
+    When specified in a request, it can be used for co-relating events across services
+
+  - +error:ErrorDetails
+
+
+    Error description..
+
+
+
+
+    - key:string
+
+
+      An application defined error code.
+
+    - reason:string
+
+
+      Reason for the failure.
+
+    - +message:OperationError\[\]
+
+      - description:string
+
+
+        A human readable explanation for the occurrence of an error
+
+      - entity:string
+
+
+        entity
+
+      - +references:EntityInfo\[\]
+
+        - version:integer
+
+        - createdDate:string
+
+        - id:string
+
+
+          id
+
+        - lastModifiedDate:string
+
+        - name:string
+
+
+          name
+
+        - additionalAttributes:object
+
+
+          A map containing additional attributes of entity where both the key and value are Strings.
+
+```json
+{
+    "trackingId": "ccconfig_c1a4fcef-aee2-4dea-8977-29f594760552",
+    "error": {
+        "key": "4xx/5xx",
+        "message": [\
+            {\
+                "description": "siteId: not found for given orgId.",\
+                "entity": "string",\
+                "references": [\
+                    {\
+                        "id": "string",\
+                        "name": "string"\
+                    }\
+                ]\
+            }\
+        ],
+        "reason": "dependency exists"
+    }
+}
+```
+
+Status: 500
+
+An Unexpected Error Occurred
+
+Schema DefinitionExample Body
+
+- -ApiErrorResponse
+
+
+
+
+
+  - trackingId:string
+
+
+    An opaque identifier for mapping protocol failures to service internal codes.
+
+
+
+    When specified in a request, it can be used for co-relating events across services
+
+  - +error:ErrorDetails
+
+
+    Error description..
+
+
+
+
+    - key:string
+
+
+      An application defined error code.
+
+    - reason:string
+
+
+      Reason for the failure.
+
+    - +message:OperationError\[\]
+
+      - description:string
+
+
+        A human readable explanation for the occurrence of an error
+
+      - entity:string
+
+
+        entity
+
+      - +references:EntityInfo\[\]
+
+        - version:integer
+
+        - createdDate:string
+
+        - id:string
+
+
+          id
+
+        - lastModifiedDate:string
+
+        - name:string
+
+
+          name
+
+        - additionalAttributes:object
+
+
+          A map containing additional attributes of entity where both the key and value are Strings.
+
+```json
+{
+    "trackingId": "ccconfig_c1a4fcef-aee2-4dea-8977-29f594760552",
+    "error": {
+        "key": "4xx/5xx",
+        "message": [\
+            {\
+                "description": "siteId: not found for given orgId.",\
+                "entity": "string",\
+                "references": [\
+                    {\
+                        "id": "string",\
+                        "name": "string"\
+                    }\
+                ]\
+            }\
+        ],
+        "reason": "dependency exists"
+    }
+}
+```
+
+Configuration
+
+Configuration is not available on this doc
+
+ParametersCode Snippets
+
+PUT/organization//address-book/ **{addressBookId}/entry/{id}**
+
+orgid\*
+
+Organization ID to be used for this operation. The specified security token must have permission to interact with the organization.
+
+addressBookId\*
+
+Resource ID of the Address Book
+
+id\*
+
+Resource ID of the Address Book Entry
+
+Request Body (Form)Request Body (JSON)
+
+AddressBookEntryDTO
+
+organizationId
+
+ID of the contact center organization. It is required to define for the following operations - All bulk save operations
+
+id
+
+ID of this contact center resource. It should not be specified when creating a new resource. However, it is mandatory when updating a resource.
+
+version
+
+The version of this resource. For a newly created resource, it will be 0 unless specified otherwise.
+
+name\*
+
+A name for the address book entry.
+
+number\*
+
+The phone number for the entry.
+
+### Query Params
+
+### Headers
+
+Use personal access token
+
+application/json
+
+application/json
+
+Add Headers
+
+Run
+
+#### Response:
+
+Data
+
+Click “Run” to get sample response
+
+CurlPythonNodejs
+
+```bash
+Copycurl -L --request PUT \
+--url https://api.wxcc-us1.cisco.com/organization//address-book/{addressBookId}/entry/{id} \
+--header 'Authorization: Bearer ' \
+--header 'Content-Type: application/json' \
+--header 'Accept: application/json' \
+--data '{}'
+```
+
+```python
+Copyimport requests
+
+url = "https://api.wxcc-us1.cisco.com/organization//address-book/{addressBookId}/entry/{id}"
+
+payload = '''{}'''
+
+headers = {
+    "Authorization": "Bearer ",
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+}
+
+response = requests.request('PUT', url, headers=headers, data = payload)
+
+print(response.text.encode('utf8'))
+```
+
+```javascript
+Copyvar request = require('request');
+
+headers = {
+    "Authorization": "Bearer ",
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+}
+body = `{}`;
+
+var options = {
+    method: 'PUT',
+    url: 'https://api.wxcc-us1.cisco.com/organization//address-book/{addressBookId}/entry/{id}',
+    headers,
+    body,
+};
+
+request(options, function (error, response) {
+    if (error) throw new Error(error);
+    console.log(response.body);
+});
+```
