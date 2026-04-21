@@ -27,6 +27,51 @@ To run the server locally for testing with the MCP Inspector or Gemini CLI:
    npm run dev
    ```
 
+### Test with MCP Inspector
+
+If you want to run the compiled Javascript (Recommended if you've already run npm run build):
+Command: node
+Arguments: /Users/cpalau/wodev/work/webexccconfig-mcp/dist/index.js (Note: Remove webexccconfig-mcp completely from the command field)
+If you want to run the TypeScript directly without building:
+Command: npx
+Arguments: Add these three separate arguments (most Inspector UIs let you add multiple args or separate them via space depending on the UI):
+tsx
+/Users/cpalau/wodev/work/webexccconfig-mcp/src/index.ts
+--stdio
+
+### Use with Claude Code or Gemini CLI
+
+For terminal-based AI assistants like **Claude Code** or **Gemini CLI**, configure the server using stdio mode.
+
+**For Claude Code:**
+Add the MCP server directly via the CLI:
+```bash
+claude mcp add webexcc node /absolute/path/to/webexccconfig-mcp/dist/index.js
+```
+*Note: Make sure your `WEBEX_TOKEN`, `WEBEX_ORG_ID`, and `WEBEX_BASE_URL` are exported in your environment before running Claude Code, or pass them in.*
+
+**Standard MCP Configuration JSON (Gemini / Claude Desktop):**
+If your client uses a configuration file (like `mcp.json` or `claude_desktop_config.json`), add the following entry:
+```json
+{
+  "mcpServers": {
+    "webexccconfig-mcp": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/webexccconfig-mcp/dist/index.js"
+      ],
+      "env": {
+        "WEBEX_TOKEN": "your_access_token",
+        "WEBEX_ORG_ID": "your_organization_id",
+        "WEBEX_BASE_URL": "https://api.wxcc-us1.cisco.com/v1"
+      }
+    }
+  }
+}
+```
+*(If running TypeScript directly without building, use `npx` as the command, with `["tsx", "/absolute/path/to/webexccconfig-mcp/src/index.ts"]` as arguments).*
+
+
 ### Deployment to Google Cloud Run (SSE/HTTP Mode)
 The server is optimized for Cloud Run using the `Streamable HTTP` transport.
 

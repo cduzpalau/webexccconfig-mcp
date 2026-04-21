@@ -1,4 +1,4 @@
-import { IServerConfig, IApiErrorResponse } from "../types.js";
+import { IServerConfig, IApiErrorResponse } from "../types/index.js";
 
 /**
  * A central HTTP Client for making requests to Webex CC APIs.
@@ -82,6 +82,16 @@ export class WebexClient {
     const response = await fetch(url, {
       method: "DELETE",
       headers: this.getHeaders(),
+    });
+    return this.handleResponse<T>(response);
+  }
+
+  public async patch<T>(path: string, body: any): Promise<T> {
+    const url = `${this.config.baseUrl}${path}`;
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: this.getHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(body),
     });
     return this.handleResponse<T>(response);
   }
