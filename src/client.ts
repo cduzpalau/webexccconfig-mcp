@@ -217,6 +217,8 @@ function toApiError(
     case 404:
       // The API often just echoes "Not Found"; naming the request is more useful.
       message = `not found: ${desc && !/^not found\.?$/i.test(desc) ? desc : label}`;
+      // A wrong region is the usual cause: each org lives in one regional API.
+      if (/no organization was found/i.test(desc)) message += " (check region / base_url: the org may be in another region)";
       break;
     case 409:
       message = `duplicate: ${desc || "a similar entity already exists"}`;

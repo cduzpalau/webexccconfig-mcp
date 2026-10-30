@@ -209,6 +209,11 @@ describe("error mapping", () => {
     expect(err.message).toBe(`not found: GET /organization/${ORG}/team/t1 (trackingId: ccconfig_abc)`);
   });
 
+  it("404 for an unknown org hints at the region", async () => {
+    const err = await errorFor(jsonResponse(404, apiError("No Organization was found with id org-123")));
+    expect(err.message).toMatch(/^not found: No Organization was found .*\(check region \/ base_url: the org may be in another region\)/);
+  });
+
   it("409 → duplicate", async () => {
     const err = await errorFor(jsonResponse(409, apiError("Team with name Billing already exists")));
     expect(err.message).toMatch(/^duplicate: Team with name Billing already exists/);

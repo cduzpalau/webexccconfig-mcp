@@ -278,6 +278,15 @@ The types live in `src/registry-types.ts`. Summary of how they differ from the o
      - how to search the operation log
      - sample Claude Code / Claude Desktop MCP configs that run this server next to Cisco's official server
    - *Accept:* following the README from a clean checkout gets both servers listed in a client, and a deferred resource is refused with the config message.
+   - **Result (2026-10-30):** the README was followed from a clean clone (install, build, config from the example) and checked with the MCP Inspector:
+     - the tools list
+     - `entry-point` is refused with "deferred by config"
+     - a live `list` returns the sandbox queues
+     - operation-log lines are written, with no token
+   - **Findings:**
+     - The Inspector consumes `--config` itself, so the README uses `WXCC_EXT_CONFIG` for it.
+     - A wrong region returns 404 "No Organization was found", which now carries a region hint.
+   - **Not verifiable here:** the official server's URL and auth. Cisco's beta page needs a login, so the README points to Cisco's docs and uses a placeholder URL.
 
 ## e. Open questions
 None at the moment. Anything new found during a phase gets added here.
