@@ -1,0 +1,39 @@
+# webexccconfig-mcp config. Copy to ./wxcc-ext.yaml or ~/.wxcc-ext/config.yaml,
+# or point to it with --config <path> / WXCC_EXT_CONFIG.
+# The Webex token is never stored here: set WEBEX_TOKEN in the environment.
+
+# Region code; the API host is derived as https://api.wxcc-<region>.cisco.com
+region: us1
+
+# Valid region codes. Add new ones here if Cisco opens a region before this list is updated.
+# regions: [us1, eu1, eu2, anz1, ca1, jp1, sg1]
+
+# Optional: overrides the derived host. Must be the bare host, without /v1.
+# base_url: https://api.wxcc-us1.cisco.com
+
+# Webex Contact Center organization id (or set WEBEX_ORG_ID).
+org_id: 00000000-0000-0000-0000-000000000000
+
+# read-only (default) or read-write. Write tools are only registered in read-write mode.
+mode: read-only
+
+# Toolsets to enable (default: all).
+# toolsets: [routing, agent, telephony, media, data, schedule, org, digital, ai]
+
+# Resources this server never exposes.
+# defer_to_official: [flow, entry-point, business-hours, dial-plan, dial-number]
+
+# Operation log and snapshots.
+# log_dir: ~/.wxcc-ext/logs
+# snapshot_dir: ~/.wxcc-ext/snapshots
+
+# request_timeout_ms: 30000
+
+# Audio uploads: provided files and `say` output are converted with ffmpeg.
+# audio:
+#   voice: Samantha
+#   ffmpeg_path: ffmpeg
+#   tts_command: say
+#   sample_rate: 8000
+#   channels: 1
+#   codec: pcm_s16le
