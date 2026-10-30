@@ -8,7 +8,7 @@
 import type { TokenProvider } from "./auth.js";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-export type QueryValue = string | number | boolean | undefined | null;
+export type QueryValue = string | number | boolean | string[] | undefined | null;
 
 export interface RequestOptions {
   method: HttpMethod;
@@ -116,7 +116,8 @@ export class WxccClient {
     const url = new URL(this.#baseUrl + filled);
     for (const [key, value] of Object.entries(query)) {
       if (value === undefined || value === null) continue;
-      url.searchParams.set(key, String(value));
+      if (Array.isArray(value)) for (const v of value) url.searchParams.append(key, v);
+      else url.searchParams.set(key, String(value));
     }
     return url.toString();
   }

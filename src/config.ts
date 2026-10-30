@@ -57,6 +57,8 @@ export interface AppConfig {
   logDir: string;
   snapshotDir: string;
   requestTimeoutMs: number;
+  /** Tool responses larger than this are trimmed, with a hint to page or select attributes. */
+  maxResponseChars: number;
   audio: AudioConfig;
   /** Path of the YAML file that was loaded, if any. */
   configPath?: string;
@@ -85,6 +87,7 @@ const fileSchema = z
     log_dir: z.string().min(1).optional(),
     snapshot_dir: z.string().min(1).optional(),
     request_timeout_ms: z.number().int().positive().max(300_000).optional(),
+    max_response_chars: z.number().int().min(2_000).max(1_000_000).optional(),
     audio: z
       .object({
         voice: z.string().min(1).optional(),
@@ -187,6 +190,7 @@ export function resolveConfig(raw: unknown, opts: LoadOptions & { configPath?: s
     logDir: expandHome(file.log_dir ?? "~/.wxcc-ext/logs", home),
     snapshotDir: expandHome(file.snapshot_dir ?? "~/.wxcc-ext/snapshots", home),
     requestTimeoutMs: file.request_timeout_ms ?? 30_000,
+    maxResponseChars: file.max_response_chars ?? 50_000,
     audio: {
       voice: audio.voice,
       ffmpegPath: audio.ffmpeg_path ?? "ffmpeg",

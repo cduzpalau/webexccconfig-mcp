@@ -29,6 +29,9 @@ mode: read-only
 
 # request_timeout_ms: 30000
 
+# Tool responses above this size are trimmed with a hint to use page/pageSize/attributes.
+# max_response_chars: 50000
+
 # Audio uploads: provided files and `say` output are converted with ffmpeg.
 # audio:
 #   voice: Samantha

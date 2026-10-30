@@ -14,7 +14,8 @@ const ROOT = resolve(import.meta.dirname, "..");
 
 describe("buildServer", () => {
   it("answers initialize and tools/list", async () => {
-    const config = resolveConfig({ region: "us1", org_id: "org-1" }, { env: {} });
+    const logDir = mkdtempSync(join(tmpdir(), "wxcc-ext-log-"));
+    const config = resolveConfig({ region: "us1", org_id: "org-1", log_dir: logDir }, { env: {} });
     const client = new WxccClient({
       baseUrl: config.baseUrl,
       orgId: config.orgId,
@@ -67,7 +68,8 @@ describe("stdio entry point", () => {
     const res = await run({ WEBEX_TOKEN: token, WXCC_REGION: "us1", WEBEX_ORG_ID: "org-1" }, input);
     const lines = res.stdout.trim().split("\n").map((l) => JSON.parse(l));
     expect(lines.find((l) => l.id === 1)?.result?.serverInfo?.name).toBe(SERVER_NAME);
-    expect(lines.find((l) => l.id === 2)?.result?.tools).toEqual([]);
+    const names = lines.find((l) => l.id === 2)?.result?.tools.map((t: { name: string }) => t.name);
+    expect(names).toEqual(expect.arrayContaining(["wxcc-ext-list-resource-types", "wxcc-ext-list", "wxcc-ext-get"]));
     expect(res.stderr).toContain("on stdio: https://api.wxcc-us1.cisco.com, mode read-only");
     expect(res.stdout + res.stderr).not.toContain(token);
   }, 20_000);

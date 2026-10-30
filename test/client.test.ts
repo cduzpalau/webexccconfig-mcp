@@ -84,6 +84,11 @@ describe("buildUrl", () => {
     expect(url.searchParams.has("attributes")).toBe(false);
   });
 
+  it("repeats array query params", () => {
+    const url = new URL(client.buildUrl("/organization/{orgid}/v3/user-profile/{id}/acl", { id: "p" }, { names: ["a", "b"] }));
+    expect(url.searchParams.getAll("names")).toEqual(["a", "b"]);
+  });
+
   it("rejects missing path params and foreign paths", () => {
     expect(() => client.buildUrl("/organization/{orgid}/team/{id}")).toThrow(/missing path parameter: id/);
     expect(() => client.buildUrl("/organization/{orgid}/team/{id}", { id: "" })).toThrow(WxccClientError);
