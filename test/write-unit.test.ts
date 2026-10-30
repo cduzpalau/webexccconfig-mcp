@@ -114,7 +114,7 @@ describe("file processor", () => {
     spawnSync("say", ["-v", "?"], { stdio: "ignore" }).status === 0;
 
   it.skipIf(!haveTools)("speaks text with say and converts it to 8 kHz mono 16-bit PCM WAV with ffmpeg", async () => {
-    const f = await files.prepare({ text: "Welcome to the test queue" }, "audio", "Welcome Prompt");
+    const f = await files.prepare({ text: "Welcome to the test queue" }, "audio", "Welcome Prompt.wav");
     expect(f.filename).toBe("Welcome_Prompt.wav");
     const b = Buffer.from(f.bytes);
     expect(b.toString("ascii", 0, 4)).toBe("RIFF");

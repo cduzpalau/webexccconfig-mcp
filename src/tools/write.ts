@@ -243,6 +243,7 @@ function uploadFor(
   op: RegistryOperation,
   info: Record<string, unknown>,
   file: FileInput | undefined,
+  warnings: string[],
 ): Upload {
   const parts = op.multipartParts!;
   if (!file) {
@@ -253,14 +254,22 @@ function uploadFor(
     );
   }
   const kind: UploadKind = parts.file === "audioFile" ? "audio" : "raw";
-  const withDefaults = kind === "audio" && info.contentType === undefined ? { ...info, contentType: "AUDIO_WAV" } : info;
+  const withDefaults: Record<string, unknown> = { ...info };
+  if (kind === "audio") {
+    if (withDefaults.contentType === undefined) withDefaults.contentType = "AUDIO_WAV";
+    // The API requires audio names to end in .wav; uploads are always converted to WAV.
+    if (typeof withDefaults.name === "string" && !/\.wav$/i.test(withDefaults.name)) {
+      withDefaults.name = `${withDefaults.name}.wav`;
+      warnings.push(`name must end in .wav: using "${withDefaults.name}"`);
+    }
+  }
   return {
     jsonPart: parts.json,
     filePart: parts.file,
     info: withDefaults,
     file,
     kind,
-    name: typeof info.name === "string" ? info.name : entry.key,
+    name: typeof withDefaults.name === "string" ? withDefaults.name : entry.key,
     fingerprint: ctx.files.fingerprint(file, kind),
   };
 }
@@ -309,7 +318,7 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
           showBody: true,
         };
         if (op.multipartParts) {
-          plan.upload = uploadFor(ctx, entry, op, args.body, args.file);
+          plan.upload = uploadFor(ctx, entry, op, args.body, args.file, warnings);
         } else {
           if (args.file) throw new ToolError(`${entry.key} create takes no file`);
           const missing = entry.requiredOnCreate.filter((f) => !(f in args.body));
@@ -370,7 +379,7 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
             ...common,
             op: putOp,
             pathParams: buildPathParams(entry, putOp, { id, parentId: args.parentId }),
-            upload: uploadFor(ctx, entry, putOp, after, args.file),
+            upload: uploadFor(ctx, entry, putOp, after, args.file, warnings),
             summary: `update ${entry.key} ${id}${label(current)} with a new file (PUT)`,
           };
         } else if (patchOp) {

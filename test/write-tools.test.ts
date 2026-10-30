@@ -212,7 +212,7 @@ describe("wxcc-ext-create", () => {
 describe("audio uploads", () => {
   const files: FileProcessor = {
     fingerprint: vi.fn((input) => `fp-${input.text ?? input.path}`),
-    prepare: vi.fn(async (_input, _kind, name) => ({ bytes: new Uint8Array([82, 73, 70, 70]), filename: `${name}.wav`, contentType: "audio/wav" })),
+    prepare: vi.fn(async (_input, _kind, name) => ({ bytes: new Uint8Array([82, 73, 70, 70]), filename: name, contentType: "audio/wav" })),
   };
 
   it("creates an audio file as multipart with a default WAV content type", async () => {
@@ -221,16 +221,17 @@ describe("audio uploads", () => {
     expect(missing.text).toMatch(/needs file: \{ path \} to a local audio file, or \{ text \}/);
     const args = { resource: "audio", body: { name: "Welcome" }, file: { text: "Welcome to Acme", voice: "Samantha" } };
     const dry = (await h.call("wxcc-ext-create", args)).json();
-    expect(dry.body).toEqual({ audioFileInfo: { name: "Welcome", contentType: "AUDIO_WAV" }, audioFile: "<file>" });
+    expect(dry.body).toEqual({ audioFileInfo: { name: "Welcome.wav", contentType: "AUDIO_WAV" }, audioFile: "<file>" });
+    expect(dry.warnings).toEqual(['name must end in .wav: using "Welcome.wav"']);
     expect(files.prepare).not.toHaveBeenCalled();
     await h.call("wxcc-ext-create", { ...args, confirm: dry.confirm });
-    expect(files.prepare).toHaveBeenCalledWith({ text: "Welcome to Acme", voice: "Samantha" }, "audio", "Welcome");
+    expect(files.prepare).toHaveBeenCalledWith({ text: "Welcome to Acme", voice: "Samantha" }, "audio", "Welcome.wav");
     const form = h.writes()[0]![1].body as FormData;
     expect(form).toBeInstanceOf(FormData);
     const audio = form.get("audioFile") as File;
     expect(audio.name).toBe("Welcome.wav");
     expect(audio.type).toBe("audio/wav");
-    expect(JSON.parse(await (form.get("audioFileInfo") as Blob).text())).toEqual({ name: "Welcome", contentType: "AUDIO_WAV" });
+    expect(JSON.parse(await (form.get("audioFileInfo") as Blob).text())).toEqual({ name: "Welcome.wav", contentType: "AUDIO_WAV" });
   });
 
   it("updates with PUT multipart when a file is given, PATCH otherwise", async () => {

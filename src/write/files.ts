@@ -103,7 +103,7 @@ export function createFileProcessor(cfg: AudioConfig): FileProcessor {
           "audio.ffmpeg_path",
           "install it (e.g. brew install ffmpeg) or set audio.ffmpeg_path to an alternative",
         );
-        return { bytes: readFileSync(out), filename: `${safeName(name)}.wav`, contentType: "audio/wav" };
+        return { bytes: readFileSync(out), filename: `${safeName(name.replace(/\.wav$/i, ""))}.wav`, contentType: "audio/wav" };
       } finally {
         rmSync(work, { recursive: true, force: true });
       }

@@ -40,7 +40,8 @@ Design details: see docs/architecture.md. Current work plan: see docs/refactor-p
 - npm run build          compile TypeScript
 - npm run typecheck      tsc --noEmit
 - npm test               unit tests (no network)
-- npm run test:live      opt-in smoke tests against a SANDBOX tenant only
+- npm run test:live      opt-in smoke tests against a SANDBOX tenant only:
+                         WXCC_LIVE=1 WXCC_SANDBOX_ORG_IDS=<org id> npm run test:live
 - npm run fetch:spec     refresh apireference/openapi/ from developer.webex.com
 - npm run gen:registry   regenerate the registry from apireference/openapi/
 

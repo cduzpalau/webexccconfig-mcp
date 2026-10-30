@@ -247,7 +247,7 @@ The types live in `src/registry-types.ts`. Summary of how they differ from the o
      - `fetch-*` actions are reads in disguise, so they run immediately with no confirmation.
      - TTS arguments are configurable (`audio.tts_args`, `audio.voice_args`) so a non-macOS command can replace `say`.
 5. **Live smoke tests (sandbox)**
-   - `npm run test:live` is skipped unless `WXCC_LIVE=1` is set and the configured orgId is in a `sandbox_org_ids` allowlist.
+   - `npm run test:live` is skipped unless `WXCC_LIVE=1` is set. It refuses to run unless the configured orgId is in the `WXCC_SANDBOX_ORG_IDS` env allowlist, which was chosen over a config key so runtime config stays free of test settings.
    - *Accept:*
      - list + get pass for every non-deferred resource
      - full create → get → update (dry-run, then apply) → delete passes for one simple resource (global-variable or work-type, name prefix `wxcc-ext-smoke-`), with cleanup in `afterAll`
@@ -256,6 +256,20 @@ The types live in `src/registry-types.ts`. Summary of how they differ from the o
      - one TTS audio file is created and deleted, confirming the WAV format is accepted
      - singletons are read-only in the smoke test
      - no token appears in output
+   - **Result (2026-10-30): all 8 live tests pass.**
+     - All 28 top-level resources list OK, apart from `call-monitoring`, which returns 403 "Unable to identify requesting user" (it probably needs a user-scoped token).
+     - Child resources are skipped when the sandbox has no parent records.
+     - No records are left behind, and the user field is restored.
+   - **Confirmed live:**
+     - the undocumented user PATCH body is a partial JSON object
+     - bulk DELETE items carrying the current record work
+     - the stale-version check works
+     - TTS → ffmpeg 8 kHz mono 16-bit PCM WAV is accepted as `AUDIO_WAV`
+   - **API rules the specs do not show:**
+     - global variable names allow only letters, digits and `_`
+     - `variableType` must be the mixed-case form (`String`): `STRING` makes the API reject the defaultValue
+     - user `externalIdentifier` is at most 20 characters
+     - audio file names must end in `.wav`. The create/update tools now append it and say so in the dry-run warnings.
 6. **Docs and side-by-side setup**
    - README covers:
      - install
