@@ -1,5 +1,12 @@
 # webexccconfig-mcp
 
+> [!WARNING]
+> **Unsupported. Use at your own risk.**
+> This is an independent project. It is **not** a Cisco product and is **not supported by Cisco**.
+> **Cisco TAC will not provide help** for issues caused by or related to it.
+> It can change your Webex Contact Center configuration, and it comes with no warranty and no support of any kind.
+> Test it against a sandbox first, and review every dry-run before you confirm a write.
+
 A stdio MCP server for **Webex Contact Center configuration**: queues, teams, skills, skill profiles, users,
 user and desktop profiles, sites, global variables, audio prompts and more. It is built to run **next to Cisco's
 official Webex Contact Center MCP server** and fill the configuration gaps it leaves.
