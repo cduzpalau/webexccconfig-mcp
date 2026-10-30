@@ -10,6 +10,7 @@ import { AuthError, StaticTokenProvider } from "./auth.js";
 import { WxccClient } from "./client.js";
 import { ConfigError, loadConfig } from "./config.js";
 import { buildServer, SERVER_NAME, SERVER_VERSION } from "./server.js";
+import { missingAudioTools } from "./write/files.js";
 
 function configPathFromArgs(argv: string[]): string | undefined {
   const i = argv.indexOf("--config");
@@ -30,6 +31,10 @@ async function main(): Promise<void> {
     tokenProvider,
     timeoutMs: config.requestTimeoutMs,
   });
+
+  if (config.mode === "read-write") {
+    for (const warning of missingAudioTools(config.audio)) console.error(`${SERVER_NAME}: warning: ${warning}`);
+  }
 
   const server = buildServer({ config, client });
   await server.connect(new StdioServerTransport());

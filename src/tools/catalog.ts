@@ -4,14 +4,10 @@
  * in listings and refused by every tool.
  */
 import type { AppConfig, Toolset } from "../config.js";
+import { ToolError } from "../errors.js";
 import type { RegistryEntry, RegistryOperation } from "../registry-types.js";
 
-export class ToolError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ToolError";
-  }
-}
+export { ToolError };
 
 export function normaliseName(name: string): string {
   return name.trim().toLowerCase().replace(/[\s_]+/g, "-");

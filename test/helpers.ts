@@ -9,6 +9,7 @@ import { StaticTokenProvider } from "../src/auth.js";
 import { WxccClient } from "../src/client.js";
 import { resolveConfig, type ConfigFile } from "../src/config.js";
 import { buildServer } from "../src/server.js";
+import type { FileProcessor } from "../src/write/files.js";
 
 export const TOKEN = "fake-token-harness";
 export const ORG = "org-1";
@@ -23,9 +24,13 @@ export function json(status: number, body: unknown, headers: Record<string, stri
   });
 }
 
-export async function startServer(opts: { config?: Partial<ConfigFile>; routes?: Route[] } = {}) {
+export async function startServer(opts: { config?: Partial<ConfigFile>; routes?: Route[]; files?: FileProcessor } = {}) {
   const logDir = mkdtempSync(join(tmpdir(), "wxcc-ext-log-"));
-  const config = resolveConfig({ region: "us1", org_id: ORG, log_dir: logDir, ...opts.config }, { env: {} });
+  const snapshotDir = mkdtempSync(join(tmpdir(), "wxcc-ext-snap-"));
+  const config = resolveConfig(
+    { region: "us1", org_id: ORG, log_dir: logDir, snapshot_dir: snapshotDir, ...opts.config },
+    { env: {} },
+  );
   const routes = opts.routes ?? [];
   const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
     const u = new URL(url);
@@ -41,7 +46,7 @@ export async function startServer(opts: { config?: Partial<ConfigFile>; routes?:
     tokenProvider: new StaticTokenProvider(TOKEN),
     fetch: fetchMock as unknown as typeof fetch,
   });
-  const server = buildServer({ config, client });
+  const server = buildServer({ config, client, files: opts.files });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
   const mcp = new Client({ name: "test", version: "0" });
@@ -64,7 +69,10 @@ export async function startServer(opts: { config?: Partial<ConfigFile>; routes?:
 
   const rawLog = (): string => readdirSync(logDir).map((f) => readFileSync(join(logDir, f), "utf8")).join("");
 
-  return { mcp, call, fetchMock, logDir, logLines, rawLog, config, close: () => mcp.close() };
+  /** Non-GET requests sent to the API. */
+  const writes = () => fetchMock.mock.calls.filter(([, init]) => init.method !== "GET");
+
+  return { mcp, call, fetchMock, writes, logDir, snapshotDir, logLines, rawLog, config, close: () => mcp.close() };
 }
 
 /** Route helper: matches method and path (after the org prefix) exactly. */

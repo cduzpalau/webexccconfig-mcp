@@ -54,6 +54,18 @@ export class OperationLog {
     return join(this.#dir, `wxcc-ext-${date.toISOString().slice(0, 10)}.log`);
   }
 
+  /** True if the log directory and today's file can be written; writes are refused otherwise. */
+  writable(): boolean {
+    try {
+      mkdirSync(this.#dir, { recursive: true, mode: 0o700 });
+      this.#dirReady = true;
+      appendFileSync(this.fileFor(this.#now()), "", { mode: 0o600 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** Appends one entry. Returns false (after reporting once) if the log could not be written. */
   record(entry: OpLogEntry): boolean {
     const now = this.#now();

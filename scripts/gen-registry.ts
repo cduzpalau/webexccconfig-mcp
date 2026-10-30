@@ -251,6 +251,7 @@ function toRegistryOperation(
     queryParams: qp,
     hasBody: body !== undefined,
     ...(body !== undefined ? { bodyEncoding: hasBinary(body) ? "multipart" : "json" } : {}),
+    ...(hasBinary(body) ? { multipartParts: multipartParts(source, body) } : {}),
     paginated: qp.some((p) => p.name === "page") && qp.some((p) => p.name === "pageSize"),
     summary: cleanText(op.summary ?? src.title),
     source,
@@ -312,6 +313,17 @@ function propertiesOf(schema: unknown): Record<string, unknown> {
 function hasBinary(schema: unknown): boolean {
   if (!isObject(schema)) return false;
   return Object.values(propertiesOf(schema)).some((p) => isObject(p) && p.type === "string" && p.format === "binary");
+}
+
+/** A multipart body must be exactly one binary part plus one object part with the record's fields. */
+function multipartParts(source: string, schema: unknown): { file: string; json: string } {
+  const props = Object.entries(propertiesOf(schema));
+  const files = props.filter(([, p]) => isObject(p) && p.type === "string" && p.format === "binary").map(([k]) => k);
+  const json = props.filter(([, p]) => isObject(p) && p.type === "object").map(([k]) => k);
+  if (files.length !== 1 || json.length !== 1) {
+    throw new Error(`${source}: expected one binary and one object part, got files=[${files}] json=[${json}]`);
+  }
+  return { file: files[0]!, json: json[0]! };
 }
 
 /** Removes generator-irrelevant keys and turns HTML descriptions into plain text. */

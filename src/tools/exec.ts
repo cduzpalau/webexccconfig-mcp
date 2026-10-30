@@ -6,7 +6,10 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { WxccApiError, WxccClientError, type ApiResponse, type QueryValue, type WxccClient } from "../client.js";
 import type { AppConfig } from "../config.js";
 import type { QueryParam, RegistryEntry, RegistryOperation } from "../registry-types.js";
+import type { PendingPlans } from "../write/confirm.js";
+import type { FileProcessor } from "../write/files.js";
 import type { LogPhase, OperationLog } from "../write/oplog.js";
+import type { SnapshotStore } from "../write/snapshot.js";
 import { ToolError, type Catalog } from "./catalog.js";
 
 export interface ToolContext {
@@ -14,6 +17,9 @@ export interface ToolContext {
   client: WxccClient;
   catalog: Catalog;
   oplog: OperationLog;
+  snapshots: SnapshotStore;
+  pending: PendingPlans;
+  files: FileProcessor;
 }
 
 export type QueryInput = Record<string, string | number | boolean | string[]>;
@@ -114,6 +120,8 @@ export interface CallSpec {
   query?: Record<string, QueryValue>;
   json?: unknown;
   form?: FormData;
+  /** Extra operation-log fields for writes. */
+  log?: { changedFields?: string[]; snapshot?: string };
 }
 
 /** Calls the API for a registry op and writes an operation-log line for success or failure. */
@@ -134,6 +142,7 @@ export async function callApi(ctx: ToolContext, spec: CallSpec): Promise<ApiResp
     op: opLabel(op),
     method: op.method,
     path,
+    ...spec.log,
   } as const;
   try {
     const res = await ctx.client.request({

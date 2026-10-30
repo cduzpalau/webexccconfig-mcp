@@ -31,6 +31,8 @@ describe("resolveConfig", () => {
       voice: undefined,
       ffmpegPath: "ffmpeg",
       ttsCommand: "say",
+      ttsArgs: ["-o", "{out}", "-f", "{in}"],
+      voiceArgs: ["-v", "{voice}"],
       sampleRate: 8000,
       channels: 1,
       codec: "pcm_s16le",

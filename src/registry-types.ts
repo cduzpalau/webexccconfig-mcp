@@ -44,6 +44,8 @@ export interface RegistryOperation {
   queryParams: QueryParam[];
   hasBody: boolean;
   bodyEncoding?: "json" | "multipart";
+  /** For multipart bodies: the binary part and the JSON part carrying the record's fields. */
+  multipartParts?: { file: string; json: string };
   paginated: boolean;
   summary: string;
   /** Key of the source operation in apireference/openapi/configuration.json. */

@@ -40,6 +40,10 @@ export interface AudioConfig {
   voice?: string;
   ffmpegPath: string;
   ttsCommand: string;
+  /** Arguments for ttsCommand; {in} is a text file, {out} the audio file to write. */
+  ttsArgs: string[];
+  /** Extra arguments when a voice is chosen; {voice} is replaced. */
+  voiceArgs: string[];
   sampleRate: number;
   channels: number;
   codec: string;
@@ -93,6 +97,8 @@ const fileSchema = z
         voice: z.string().min(1).optional(),
         ffmpeg_path: z.string().min(1).optional(),
         tts_command: z.string().min(1).optional(),
+        tts_args: z.array(z.string()).min(1).optional(),
+        voice_args: z.array(z.string()).optional(),
         sample_rate: z.number().int().positive().optional(),
         channels: z.number().int().min(1).max(2).optional(),
         codec: z.string().min(1).optional(),
@@ -195,6 +201,8 @@ export function resolveConfig(raw: unknown, opts: LoadOptions & { configPath?: s
       voice: audio.voice,
       ffmpegPath: audio.ffmpeg_path ?? "ffmpeg",
       ttsCommand: audio.tts_command ?? "say",
+      ttsArgs: audio.tts_args ?? ["-o", "{out}", "-f", "{in}"],
+      voiceArgs: audio.voice_args ?? ["-v", "{voice}"],
       sampleRate: audio.sample_rate ?? 8000,
       channels: audio.channels ?? 1,
       codec: audio.codec ?? "pcm_s16le",

@@ -11,7 +11,11 @@ import type { RegistryEntry } from "./registry-types.js";
 import { Catalog } from "./tools/catalog.js";
 import type { ToolContext } from "./tools/exec.js";
 import { registerReadTools } from "./tools/read.js";
+import { registerWriteTools } from "./tools/write.js";
+import { PendingPlans } from "./write/confirm.js";
+import { createFileProcessor, type FileProcessor } from "./write/files.js";
 import { OperationLog } from "./write/oplog.js";
+import { SnapshotStore } from "./write/snapshot.js";
 
 const pkg = createRequire(import.meta.url)("../package.json") as { version: string };
 
@@ -25,6 +29,8 @@ export interface ServerDeps {
   oplog?: OperationLog;
   /** Defaults to the generated registry. */
   registry?: readonly RegistryEntry[];
+  /** Defaults to ffmpeg/TTS-based processing from config.audio. */
+  files?: FileProcessor;
 }
 
 export function buildServer(deps: ServerDeps): McpServer {
@@ -37,7 +43,11 @@ export function buildServer(deps: ServerDeps): McpServer {
     client: deps.client,
     catalog: new Catalog(deps.registry ?? RESOURCES, deps.config),
     oplog: deps.oplog ?? new OperationLog({ dir: deps.config.logDir }),
+    snapshots: new SnapshotStore(deps.config.snapshotDir),
+    pending: new PendingPlans(),
+    files: deps.files ?? createFileProcessor(deps.config.audio),
   };
   registerReadTools(server, ctx);
+  if (deps.config.mode === "read-write") registerWriteTools(server, ctx);
   return server;
 }

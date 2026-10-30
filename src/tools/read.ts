@@ -22,17 +22,17 @@ import {
 } from "./exec.js";
 import { compactSchema } from "./schema.js";
 
-const READ_ANNOTATIONS = { readOnlyHint: true, idempotentHint: true, openWorldHint: true } as const;
+const READ_ANNOTATIONS = { readOnlyHint: true } as const;
 const LIST_HINT = "use page/pageSize, filter or attributes to fetch less";
 const GET_HINT = "use wxcc-ext-list with attributes to fetch selected fields";
 
-const resource = z.string().describe("Resource key or alias, e.g. contact-service-queue, team");
+const resource = z.string().describe("Resource key or alias, e.g. team");
 const queryValue = z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]);
 const common = {
-  view: z.string().optional().describe("Named view from describe-resource, e.g. references"),
-  parentId: z.string().optional().describe("Parent id for child resources"),
-  params: z.record(z.string()).optional().describe("Other path params a view needs"),
-  query: z.record(queryValue).optional().describe("Extra query params listed by describe-resource"),
+  view: z.string().optional().describe("View name, e.g. references"),
+  parentId: z.string().optional().describe("Parent id (child resources)"),
+  params: z.record(z.string()).optional().describe("Other path params"),
+  query: z.record(queryValue).optional().describe("Other query params"),
 };
 
 const OP_SUMMARY_KINDS = ["list", "get", "create", "update", "patch", "delete", "bulkSave", "bulkPatch"] as const;
@@ -86,7 +86,6 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     "wxcc-ext-list-resource-types",
     {
-      title: "List WxCC config resource types",
       description:
         "Start here. Lists the Webex Contact Center configuration resource types this server manages " +
         "(queues, teams, skills, users, desktop profiles, sites, ...), with their operations, views and actions.",
@@ -103,7 +102,6 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     "wxcc-ext-describe-resource",
     {
-      title: "Describe a WxCC config resource",
       description:
         "Fields, required fields, operations, query params and views of one resource type. " +
         "Pass operation (e.g. create, update, view:acl) for that operation's request and response schema.",
@@ -181,7 +179,6 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     "wxcc-ext-list",
     {
-      title: "List WxCC config records",
       description:
         "List records of a resource type. filter is RSQL (e.g. name==\"Sales\"), search is a keyword, attributes " +
         "selects fields, page is 0-based. view runs a named list view from describe-resource.",
@@ -230,7 +227,6 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     "wxcc-ext-get",
     {
-      title: "Get a WxCC config record",
       description:
         "Get one record by id; singletons need no id. view: references lists the entities that use the record; " +
         "other views come from describe-resource.",

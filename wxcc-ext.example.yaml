@@ -37,6 +37,8 @@ mode: read-only
 #   voice: Samantha
 #   ffmpeg_path: ffmpeg
 #   tts_command: say
+#   tts_args: ["-o", "{out}", "-f", "{in}"]   # {in} = text file, {out} = audio file to write
+#   voice_args: ["-v", "{voice}"]
 #   sample_rate: 8000
 #   channels: 1
 #   codec: pcm_s16le

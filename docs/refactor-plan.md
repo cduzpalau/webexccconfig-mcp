@@ -202,7 +202,7 @@ The types live in `src/registry-types.ts`. Summary of how they differ from the o
      - resources in `defer_to_official` are refused with a short "deferred by config" message
      - disabled toolsets are hidden
      - tool descriptions do not enumerate what the official server covers; that is controlled above this server
-     - the combined `tools/list` payload stays under a fixed budget (proposed 6 KB JSON)
+     - the combined `tools/list` payload stays under a fixed budget: 4 KB in read-only mode (4 tools), 8 KB in read-write mode (9 tools). The original 6 KB budget assumed fewer tools.
      - mocked-fetch tests cover each tool, each `view`, pagination meta passthrough and filter encoding
      - responses are trimmed to a size cap with a "use page/attributes" hint
 4. **Write pipeline**: `wxcc-ext-create`, `update`, `delete`, `bulk`, `action`, available only when `mode: read-write`.
@@ -238,6 +238,14 @@ The types live in `src/registry-types.ts`. Summary of how they differ from the o
      - the audio path with `ffmpeg`/`say` mocked, including the missing-tool message
      
      No tool handler imports `fetch`; a lint or grep test enforces this.
+   - **As built:**
+     - The confirmation hash covers the exact request (method, path, query, body or upload fingerprint) plus the version of every record read.
+     - Apply rebuilds the plan from a fresh read. A different hash for the same target with a changed version gives "stale version: … (v3 → v4)"; any other mismatch gives "confirmation does not match".
+     - Recent dry-runs are kept in memory for 1 h, but only to produce that precise message. Apply itself is stateless.
+     - Writes are refused if the operation log or the snapshot can't be written.
+     - Bulk SAVE items with an id are read and merged like `update`. DELETE items send the current record. `organizationId` is injected into every item. Bulk writes produce one snapshot file.
+     - `fetch-*` actions are reads in disguise, so they run immediately with no confirmation.
+     - TTS arguments are configurable (`audio.tts_args`, `audio.voice_args`) so a non-macOS command can replace `say`.
 5. **Live smoke tests (sandbox)**
    - `npm run test:live` is skipped unless `WXCC_LIVE=1` is set and the configured orgId is in a `sandbox_org_ids` allowlist.
    - *Accept:*

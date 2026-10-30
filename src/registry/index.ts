@@ -388,6 +388,10 @@ export const RESOURCES: readonly RegistryEntry[] = [
         "queryParams": [],
         "hasBody": true,
         "bodyEncoding": "multipart",
+        "multipartParts": {
+          "file": "audioFile",
+          "json": "agentPersonalGreetingInfo"
+        },
         "paginated": false,
         "summary": "Create a new Greeting File",
         "source": "POST /organization/{orgid}/v2/agent-personal-greeting"
@@ -403,6 +407,10 @@ export const RESOURCES: readonly RegistryEntry[] = [
         "queryParams": [],
         "hasBody": true,
         "bodyEncoding": "multipart",
+        "multipartParts": {
+          "file": "audioFile",
+          "json": "agentPersonalGreetingInfo"
+        },
         "paginated": false,
         "summary": "Update specific Greeting File by ID",
         "source": "PUT /organization/{orgid}/v2/agent-personal-greeting/{id}"
@@ -950,6 +958,10 @@ export const RESOURCES: readonly RegistryEntry[] = [
         "queryParams": [],
         "hasBody": true,
         "bodyEncoding": "multipart",
+        "multipartParts": {
+          "file": "audioFile",
+          "json": "audioFileInfo"
+        },
         "paginated": false,
         "summary": "Create a new Audio File",
         "source": "POST /organization/{orgid}/audio-file"
@@ -965,6 +977,10 @@ export const RESOURCES: readonly RegistryEntry[] = [
         "queryParams": [],
         "hasBody": true,
         "bodyEncoding": "multipart",
+        "multipartParts": {
+          "file": "audioFile",
+          "json": "audioFileInfo"
+        },
         "paginated": false,
         "summary": "Update specific Audio File by ID",
         "source": "PUT /organization/{orgid}/audio-file/{id}"
@@ -1714,6 +1730,10 @@ export const RESOURCES: readonly RegistryEntry[] = [
         "queryParams": [],
         "hasBody": true,
         "bodyEncoding": "multipart",
+        "multipartParts": {
+          "file": "logoFile",
+          "json": "logoFileInfo"
+        },
         "paginated": false,
         "summary": "Create a new Channel",
         "source": "POST /organization/{orgid}/channel"
@@ -1729,6 +1749,10 @@ export const RESOURCES: readonly RegistryEntry[] = [
         "queryParams": [],
         "hasBody": true,
         "bodyEncoding": "multipart",
+        "multipartParts": {
+          "file": "logoFile",
+          "json": "logoFileInfo"
+        },
         "paginated": false,
         "summary": "Update specific Channel by ID",
         "source": "PUT /organization/{orgid}/channel/{id}"

@@ -125,6 +125,7 @@ describe("buildRegistry on the fixture spec", () => {
   it("detects multipart uploads from binary properties", () => {
     const create = opOf("audio-file", "create")!;
     expect(create.bodyEncoding).toBe("multipart");
+    expect(create.multipartParts).toEqual({ file: "audioFile", json: "audioFileInfo" });
     expect(entries.find((e) => e.key === "audio-file")!.requiredOnCreate).toEqual(["audioFile"]);
   });
 

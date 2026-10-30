@@ -65,8 +65,9 @@ Every write goes through the same steps:
 2. **build**: if the resource has PATCH, send the partial change as PATCH. Otherwise deep-merge it onto
    the current resource, strip readOnly fields, keep `version` and PUT.
 3. **dry-run/diff**: the default. Returns the diff and a confirmation hash, with no API change.
-4. **apply**: requires the hash. Rejects the write if `version` changed since the snapshot (stale),
-   otherwise sends the request through `client.ts`.
+4. **apply**: requires the hash. The plan is rebuilt from a fresh read, so a changed `version`
+   (stale) or changed arguments produce a different hash and the write is rejected. Otherwise the
+   before-state is snapshotted and the request goes through `client.ts`.
 5. **log**: appends a line to the operation log.
 
 The **operation log** records every operation, reads included. It is a set of daily text files,

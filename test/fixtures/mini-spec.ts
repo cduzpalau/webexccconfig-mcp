@@ -94,7 +94,13 @@ export const MINI_SPEC: SpecFile = {
       {
         requestBody: {
           content: {
-            "application/json": { schema: { type: "object", required: ["audioFile"], properties: { audioFile: { type: "string", format: "binary" } } } },
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["audioFile"],
+                properties: { audioFile: { type: "string", format: "binary" }, audioFileInfo: { type: "object", properties: { name: { type: "string" } } } },
+              },
+            },
             "multipart/form-data": { schema: { type: "object" } },
           },
         },
