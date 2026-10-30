@@ -8,9 +8,11 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts",
+    "dev": "tsx --no-deprecation src/index.ts",
     "test": "vitest run",
-    "test:live": "vitest run --config vitest.live.config.ts"
+    "test:live": "vitest run --config vitest.live.config.ts",
+    "fetch:spec": "tsx --no-deprecation scripts/fetch-spec.ts",
+    "gen:registry": "tsx --no-deprecation scripts/gen-registry.ts"
   },
   "repository": {
     "type": "git",

@@ -25,6 +25,7 @@ Design details: see docs/architecture.md. Current work plan: see docs/refactor-p
 - src/auth.ts            token provider interface (personal token now, OAuth later)
 - src/client.ts          the only place that calls the Webex CC REST API
 - src/registry/          GENERATED resource registry. Do not hand-edit; run `npm run gen:registry`
+- src/registry-types.ts  hand-written types for the generated registry
 - src/tools/             the generic tools (list_resource_types, describe_resource, list, get,
                          create, update, delete, bulk, action)
 - src/write/             snapshot, merge, diff, operation log, audio conversion

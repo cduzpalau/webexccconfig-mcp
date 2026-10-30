@@ -55,7 +55,7 @@ Conventions used in the table:
 | ai-feature-auto-csat-question | `/ai-feature/auto-csat/question` v1; list v2 | list, get, create, delete, bulk (save) | none (no update op) | `id` | new | ai | no |
 v1 total: 178 tools, of which 28 belong to deferred resources (business-hours 4, dial-number 10, dial-plan 8, entry-point 6).
 
-The live specs cover 38 resources; flow is the only one they don't have. 52 of the 319 live operations are deprecated. Four AI resources are entirely deprecated: agent-burnout, auto-csat, auto-csat-question and generated-summaries, replaced by ai-feature and ai-feature-auto-csat-question. Those four are **out of scope**, which leaves 34 resources in the registry.
+The live specs cover 38 resources; flow is the only one they don't have. 52 of the 319 live operations are deprecated. Four AI resources are entirely deprecated: agent-burnout, auto-csat, auto-csat-question and generated-summaries, replaced by ai-feature and ai-feature-auto-csat-question. Those four are **out of scope**. Dial-plan is also entirely deprecated (and deferred anyway), so the generated registry holds **33 resources**.
 
 **Corrections versus apireference/ (the live docs win):**
 - CSQ list: the current version is **v2**; v3 is deprecated. apireference/ had it the other way round.
@@ -157,50 +157,14 @@ The live specs cover 38 resources; flow is the only one they don't have. 52 of t
    - `src/registry/schemas/<key>.json`: full request/response schemas, loaded only by describe_resource.
 9. Keep the output deterministic. A test reruns the generator and fails if the committed output differs.
 
-### Proposed registry entry
-```ts
-export type Toolset = "routing" | "agent" | "telephony" | "media" | "data"
-  | "schedule" | "org" | "digital" | "ai";
-export type OpKind = "list" | "get" | "create" | "update" | "patch" | "delete"
-  | "bulkSave" | "bulkPatch" | "bulkExport" | "references" | "purgeInactive" | "custom";
-
-export interface QueryParam {
-  name: string;
-  type: "string" | "integer" | "boolean";
-  required: boolean;
-  default?: string;
-}
-
-export interface RegistryOperation {
-  kind: OpKind;
-  name?: string;              // custom ops only, e.g. "reassign-agents"
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  path: string;               // "/organization/{orgid}/v2/team/{id}"
-  apiVersion: 1 | 2 | 3;
-  pathParams: string[];       // excluding orgid
-  queryParams: QueryParam[];
-  bodySchema?: string;        // key into schemas/<resource>.json
-  bodyEncoding?: "json" | "multipart";
-  paginated: boolean;
-  deprecated: boolean;
-  source: string;             // "METHOD path" key in configuration.json
-}
-
-export interface RegistryEntry {
-  key: string;                // "contact-service-queue"
-  displayName: string;        // "Contact Service Queue"
-  aliases: string[];          // ["queue", "csq"]
-  toolset: Toolset;
-  deferToOfficial: boolean;
-  singleton: boolean;         // organization-setting, tenant-configuration
-  idField: "id";
-  parent?: { resource: string; param: string }; // address-book-entry -> addressBookId
-  updateSemantics: "put-full-replace" | "patch-partial" | "put-and-patch" | "none";
-  readOnlyFields: string[];   // stripped before PUT: createdTime, lastUpdatedTime, ...
-  requiredOnCreate: string[];
-  operations: RegistryOperation[];
-}
-```
+### Registry entry (as built in phase 2)
+The types live in `src/registry-types.ts`. Summary of how they differ from the original proposal:
+- Op kinds are `list`, `get`, `create`, `update`, `patch`, `delete`, `bulkSave`, `bulkPatch` and `references`, plus named `view` ops (extra GETs, reached through the `view` param of list/get) and named `action` ops (extra writes, reached through `wxcc-ext-action`).
+- `purge-inactive-entities` becomes `action:purge-inactive`. Collection-level delete-all and bulk export are never emitted.
+- There is no `deferToOfficial` field. Deferral is decided at runtime by config `defer_to_official` alone. A test checks that the default list's keys exist in the registry, except flow and dial-plan, which have no live ops.
+- Each op records `hasBody`, `bodyEncoding` (`multipart` when the body has a `format: binary` property), `paginated` (has `page` + `pageSize`) and `source`, the "METHOD path" key in the spec snapshot.
+- When several live versions exist for one kind, the highest wins. Same-version duplicates fail the build. `nameBySource` and `rename` in the overrides resolve name clashes.
+- Full schemas for describe_resource are emitted per resource as `src/registry/schemas/<key>.ts`, loaded lazily through `SCHEMA_LOADERS`.
 
 ## d. Build phases and acceptance criteria
 1. **Skeleton (stdio, config, auth, API client)**
@@ -224,8 +188,8 @@ export interface RegistryEntry {
    - Add `npm run fetch:spec` (runs `scripts/fetch-spec.ts`).
    - *Accept:*
      - `scripts/fetch-spec.ts` reproduces `apireference/openapi/configuration.json` (319 ops on 2026-10-30) and reports drift.
-     - `npm run gen:registry` classifies every non-deprecated op with 0 unclassified. It emits one entry per resource in the inventory (34; flow has no spec), with deferred resources flagged.
-     - Deprecated-only resources are not emitted.
+     - `npm run gen:registry` classifies every non-deprecated op with 0 unclassified. It emits one entry per live resource (33: flow has no spec, and dial-plan and the 4 deprecated AI resources have only deprecated ops).
+     - Deprecated-only resources are not emitted. Collection delete-all and bulk export are excluded and reported.
      - The `*DTO`-query quirk is normalised.
      - A rerun is byte-identical (the drift test passes).
      - Fixture tests cover a list, a PUT with nested body, a child resource, a 207 bulk, a multipart upload and a singleton.

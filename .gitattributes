@@ -1,0 +1,2 @@
+src/registry/** linguist-generated=true
+apireference/openapi/*.json linguist-generated=true
