@@ -6,13 +6,23 @@
 > **Cisco TAC will not provide help** for issues caused by or related to it.
 > It can change your Webex Contact Center configuration, and it comes with no warranty and no support of any kind.
 > Test it against a sandbox first, and review every dry-run before you confirm a write.
+>
+> **The supported option is Cisco's official Webex Contact Center MCP Server:**
+> https://developer.webex.com/mcp/docs/contact-center-mcp-server
+> Use it whenever it covers what you need.
 
-A stdio MCP server for **Webex Contact Center configuration**: queues, teams, skills, skill profiles, users,
-user and desktop profiles, sites, global variables, audio prompts and more. It is built to run **next to Cisco's
-official Webex Contact Center MCP server** and fill the configuration gaps it leaves.
+**How this server differs from Cisco's.**
+- **Cisco's official server** is hosted. You connect over HTTP with Webex OAuth, and an administrator enables it
+  for the organization in Control Hub. It focuses on flows, Day 0 administration and real-time and analytics use
+  cases.
+- **webexccconfig-mcp** is a local **stdio** server. It runs on your machine with a **personal access token** and
+  is built for **configuring a contact center programmatically**: queues, teams, skills, skill profiles, users,
+  user and desktop profiles, sites, global variables, audio prompts and more.
 
-Instead of one tool per API call, it exposes nine generic tools over a registry generated from Cisco's published
-OpenAPI specs: 33 resource types and 253 operations. Writes are dry-run by default, need explicit confirmation,
+The two can run side by side. This server fills the configuration gaps and defers what the official server owns.
+
+This server exposes nine generic tools, not one tool per API call, over a registry generated from Cisco's
+published OpenAPI specs: 33 resource types and 253 operations. Writes are dry-run by default, need explicit confirmation,
 are checked for stale versions, snapshot the previous state and are logged.
 
 - **Transport:** stdio only (no HTTP server).
@@ -95,7 +105,8 @@ Its tool descriptions don't mention what the official server covers. Routing bet
 your client setup and by `defer_to_official`.
 
 ### Claude Code
-Project-scoped `.mcp.json`. Claude Code expands `${VAR}` from your shell, so the token stays out of the file:
+This server, as a project-scoped `.mcp.json`. Claude Code expands `${VAR}` from your shell, so the token stays
+out of the file:
 ```json
 {
   "mcpServers": {
@@ -103,23 +114,26 @@ Project-scoped `.mcp.json`. Claude Code expands `${VAR}` from your shell, so the
       "command": "node",
       "args": ["/absolute/path/to/webexccconfig-mcp/dist/index.js", "--config", "/absolute/path/to/wxcc-ext.yaml"],
       "env": { "WEBEX_TOKEN": "${WEBEX_TOKEN}" }
-    },
-    "wxcc-official": {
-      "type": "http",
-      "url": "<regional Contact Center MCP server URL from the Webex Developer Portal>",
-      "headers": { "Authorization": "Bearer ${WXCC_MCP_TOKEN}" }
     }
   }
 }
 ```
-Or add them from the CLI:
+Or from the CLI:
 ```bash
 claude mcp add wxcc-ext -e WEBEX_TOKEN="$WEBEX_TOKEN" -- node /absolute/path/to/webexccconfig-mcp/dist/index.js --config /absolute/path/to/wxcc-ext.yaml
-claude mcp add --transport http wxcc-official "<regional server URL>" --header "Authorization: Bearer $WXCC_MCP_TOKEN"
-claude mcp list
 ```
 `claude mcp add -e` stores the value you pass in Claude Code's configuration. Prefer the `.mcp.json` form if you
 don't want the token saved there.
+
+Cisco's server uses OAuth. Cisco documents this command for it
+([Claude Code guide](https://developer.webex.com/mcp/docs/webex-agentic-mcp-servers-claude-code)):
+```bash
+MCP_CLIENT_SECRET=<client secret> claude mcp add --transport http \
+  --client-id <client id> --client-secret --callback-port <port> \
+  wxcc-official <Contact Center MCP server URL>
+```
+Then run `/mcp` in Claude Code, select the server and choose **Authenticate**. `claude mcp list` should show both
+servers.
 
 ### Claude Desktop and other stdio clients
 Add this server to the client's MCP config (for Claude Desktop, `claude_desktop_config.json`):
@@ -134,16 +148,30 @@ Add this server to the client's MCP config (for Claude Desktop, `claude_desktop_
   }
 }
 ```
-Add Cisco's server the way its documentation describes for your client.
+Add Cisco's server with the guide for your client. Cisco lists guides for Amazon Quick, Claude Code, Claude
+Desktop, Codex, Copilot Studio, Cursor, Gemini CLI and VS Code on its
+[Contact Center MCP Server page](https://developer.webex.com/mcp/docs/contact-center-mcp-server).
 
-### Cisco's official server
-Cisco's Webex Contact Center MCP server is a hosted, regional HTTP server, in beta at the time of writing.
-- **Enable it:** an organization administrator turns it on in Control Hub (Apps → Agentic Apps).
-- **Server URL:** the regional URL for your tenant is shown in the Webex Developer Portal.
-- **Authentication:** an OAuth bearer token.
+### Cisco's official server (supported)
+From Cisco's [Contact Center MCP Server documentation](https://developer.webex.com/mcp/docs/contact-center-mcp-server):
 
-Follow Cisco's current documentation for the URL and scopes. They are not reproduced here because they change
-during the beta.
+**Enablement.** An administrator enables the server for the organization through the Webex Agentic Platform,
+or the Agentic Apps settings in Control Hub, and can choose which of its tools are enabled.
+
+**Authentication.** A Webex OAuth 2.0 bearer token (issuer `https://webexapis.com`), with these scopes:
+`spark:mcp cjp:config_read cjp:config_write cjp:user spark:people_read`.
+
+**Coverage.**
+- **Flows:** list, create, read, save and patch drafts, validate (FlowV2), plus templates and activity discovery.
+- **Admin config:** create, update and delete entry points, business hours, dial plans and dial numbers.
+  Read-only views of queues, teams, users, skill profiles, auxiliary codes, agent profiles and outdial ANIs.
+- **Also:** real-time telemetry subscriptions, AI customer journey context and historical analytics queries.
+
+Check Cisco's page for the current tool list and for your server URL.
+
+**How the two fit together.** This server's default `defer_to_official` list (flows, entry points, business
+hours, dial plans, dial numbers) is exactly what the official server writes. Leave it as is to let the official
+server own those resources and use this one for the rest of the configuration.
 
 ### Check the setup
 - `claude mcp list` (or your client's server list) shows both servers.
