@@ -31,8 +31,8 @@ const queryValue = z.union([z.string(), z.number(), z.boolean(), z.array(z.strin
 const common = {
   view: z.string().optional().describe("View name, e.g. references"),
   parentId: z.string().optional().describe("Parent id (child resources)"),
-  params: z.record(z.string()).optional().describe("Other path params"),
-  query: z.record(queryValue).optional().describe("Other query params"),
+  params: z.record(z.string(), z.string()).optional().describe("Other path params"),
+  query: z.record(z.string(), queryValue).optional().describe("Other query params"),
 };
 
 const OP_SUMMARY_KINDS = ["list", "get", "create", "update", "patch", "delete", "bulkSave", "bulkPatch"] as const;

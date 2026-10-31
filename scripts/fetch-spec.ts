@@ -38,8 +38,8 @@ const operationSchema = z
     description: z.string().optional(),
     deprecated: z.boolean().optional(),
     parameters: z.array(parameterSchema).optional(),
-    requestBody: z.object({ content: z.record(z.unknown()) }).passthrough().optional(),
-    responses: z.record(z.unknown()),
+    requestBody: z.object({ content: z.record(z.string(), z.unknown()) }).passthrough().optional(),
+    responses: z.record(z.string(), z.unknown()),
   })
   .passthrough();
 

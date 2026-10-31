@@ -287,7 +287,7 @@ const file = z
   .object({ path: z.string().optional(), text: z.string().optional(), voice: z.string().optional() })
   .optional()
   .describe("Upload: local path, or text to speak (audio)");
-const record = z.record(z.unknown());
+const record = z.record(z.string(), z.unknown());
 
 export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
@@ -533,8 +533,8 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
         action: z.string(),
         id: z.string().optional(),
         parentId,
-        params: z.record(z.string()).optional().describe("Other path params"),
-        query: z.record(z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).optional(),
+        params: z.record(z.string(), z.string()).optional().describe("Other path params"),
+        query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).optional(),
         body: z.unknown().optional(),
         confirm,
       },
