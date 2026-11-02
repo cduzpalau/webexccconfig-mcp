@@ -20,8 +20,9 @@ mode: read-only
 # Toolsets to enable (default: all).
 # toolsets: [routing, agent, telephony, media, data, schedule, org, digital, ai]
 
-# Resources this server never exposes.
+# Resources this server never exposes. These are the ones currently covered by official WxCC MCP server as of November 2026
 # defer_to_official: [flow, entry-point, business-hours, dial-plan, dial-number]
+defer_to_oficial: []
 
 # Operation log and snapshots.
 # log_dir: ~/.wxcc-ext/logs
