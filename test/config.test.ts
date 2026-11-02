@@ -27,6 +27,8 @@ describe("resolveConfig", () => {
     expect(c.deferToOfficial).toEqual([...DEFAULT_DEFER_TO_OFFICIAL]);
     expect(c.logDir).toBe("/home/test/.wxcc-ext/logs");
     expect(c.snapshotDir).toBe("/home/test/.wxcc-ext/snapshots");
+    expect(c.exportDir).toBe("/home/test/.wxcc-ext/exports");
+    expect(c.deferToOfficial).not.toContain("flow");
     expect(c.audio).toEqual({
       voice: undefined,
       ffmpegPath: "ffmpeg",

@@ -288,6 +288,65 @@ The types live in `src/registry-types.ts`. Summary of how they differ from the o
      - A wrong region returns 404 "No Organization was found", which now carries a region hint.
    - **Not verifiable here:** the official server's URL and auth. Cisco's beta page needs a login, so the README points to Cisco's docs and uses a placeholder URL.
 
+## f. v2.1: flow list, export, import, unlock and delete
+Request: add the flow operations Cisco's official server lacks, without taking over flow building.
+
+**Source.** developer.webex.com → API Reference (Contact Center) → Webex Contact Center: Flow
+Orchestration → Flows. These are 13 operations, snapshotted to `apireference/openapi/flows.json` by
+`fetch-spec.ts`, which now handles several sections (`--only flows`). Legacy Flows (deprecated) is not
+snapshotted.
+
+**Mapping onto the generic tools:**
+
+| Need | Op (registry) | Tool |
+|---|---|---|
+| List flows/subflows | `GET …/flows` (list) | `wxcc-ext-list` |
+| Read current draft | `GET …/v2/flows/{id}` (get) | `wxcc-ext-get`, and the before-read for writes |
+| Export | `GET …/v2/flows/{id}:export` (view:export) | `wxcc-ext-get` `view: "export"`, `saveTo` |
+| Import | `POST …/v2/flows:import` (action:import) | `wxcc-ext-action`, `bodyFile` |
+| Unlock | `POST …/flows/{id}:unlock` (action:unlock) | `wxcc-ext-action` |
+| Delete | `DELETE …/flows/{id}` (delete) | `wxcc-ext-delete`, `query` |
+
+The official server keeps search, lock, publish, save draft, patch draft and both validate ops; the
+generator excludes them through the allowlist.
+
+**Decisions:**
+- **No new tool.** CLAUDE.md forbids per-resource tools. The real gap was moving large documents, and
+  that is solved by generic `saveTo`/`bodyFile` parameters that work for any resource.
+- **Defer list.** `flow` is dropped from the default `defer_to_official` list, because only
+  non-overlapping operations are exposed. Users can still add it back.
+- **Subflows.** A `flowType` query param on every op (FLOW|SUBFLOW), not a separate resource or alias.
+  An alias could not set flowType, so it would silently act on flows. Write tools pass `flowType` on
+  to the before-read.
+- **Safer delete.** `sendDefaults` makes delete send `skipRsEPCheck=false`.
+- **Version** 2.1.0, with a changelog in the README.
+
+**Acceptance:**
+- `gen:registry` emits 34 resources and 259 operations; `flow` has exactly the six ops, and the other seven flow ops are reported as excluded.
+- Unit tests cover:
+  - path normalisation and colon verbs
+  - the allowlist, `sendDefaults` and `queryEnums`
+  - list pagination mapping (`size`, `currentPage`)
+  - export to a file (never overwriting)
+  - import from a file (outline dry-run; the hash covers the content)
+  - unlock with `flowType` carried to the read
+  - delete defaults and `force`
+- The read-write tool list stays within the 8 KB budget.
+- Live, on the sandbox: list flows, and export one to a file (read-only).
+
+**Result (2026-11-02):**
+- `npm test` passes 203 tests, and the live suite passes 9 of 9 on the eu2 sandbox. The live flow round trip
+  covers list, export to a file, import of a renamed `wxcc_ext_smoke_*` copy, unlock and delete.
+- **Findings:**
+  - Flows are served at `https://api.wxcc-<region>.cisco.com/{orgId}/project/5e5c9ad6d61f870d6d778c1b/…`, so no
+    separate host is needed. (The spec's own `servers` entry is the internal `flow-store.produs1…` host.)
+  - With `includePagination=true`, list returns `{ pageInfo: { currentPage, pageSize, totalPages, totalRecords },
+    data }`. Without it, list returns a bare array.
+  - Global variables no longer return `version`, and `lastUpdatedTime` has one-second resolution. The stale
+    check now adds a content hash to the timestamp.
+  - Snapshot file names collided when two writes to the same record landed in the same millisecond. They now
+    get a numeric suffix.
+
 ## e. Open questions
 None at the moment. Anything new found during a phase gets added here.
 
@@ -309,4 +368,5 @@ None at the moment. Anything new found during a phase gets added here.
 - **Audio format:** default WAV, 8 kHz, mono, 16-bit PCM, configurable. The phase 5 smoke test confirms it is accepted.
 - **TTS voice:** a default `audio.voice` in config, overridable per call.
 - **Holiday lists and overrides:** kept in this server (toolset `schedule`). They can be deferred later via `defer_to_official`.
+- **Flows (2.1):** list, get, export, import, unlock and delete only, through an allowlist; `flow` is no longer default-deferred (section f).
 - **CLAUDE.md:** updated to match these decisions (official server coverage not described in tool descriptions, `action` tool, PATCH-first update, operation log, spec fetch).

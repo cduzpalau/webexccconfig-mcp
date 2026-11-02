@@ -13,6 +13,7 @@ import type { QueryValue } from "../client.js";
 import type { RegistryEntry, RegistryOperation } from "../registry-types.js";
 import { fingerprint, planHash } from "../write/confirm.js";
 import type { FileInput, UploadKind } from "../write/files.js";
+import { loadJson, outline } from "../write/jsonfile.js";
 import { changedFields, deepMerge, diff, isPlainObject, omit, presentChanges, type Change } from "../write/merge.js";
 import { actionNames, findOp, ToolError } from "./catalog.js";
 import {
@@ -23,6 +24,7 @@ import {
   jsonResult,
   opLabel,
   shapeResult,
+  sharedQuery,
   stripLinks,
   type QueryInput,
   type ToolContext,
@@ -55,6 +57,8 @@ interface Plan {
   warnings: string[];
   /** Include the request body in the dry-run (create, bulk, action). */
   showBody?: boolean;
+  /** The body came from this local file: the dry-run shows an outline instead of the body. */
+  bodyFile?: string;
 }
 
 function hashOf(plan: Plan): string {
@@ -104,8 +108,13 @@ async function execute(ctx: ToolContext, plan: Plan, confirm: string | undefined
       path,
       status: "ok",
       changedFields: fields,
+      ...(plan.bodyFile ? { file: plan.bodyFile } : {}),
     });
-    const body = plan.upload ? { [plan.upload.jsonPart]: plan.upload.info, [plan.upload.filePart]: "<file>" } : plan.json;
+    const body = plan.upload
+      ? { [plan.upload.jsonPart]: plan.upload.info, [plan.upload.filePart]: "<file>" }
+      : plan.bodyFile
+        ? { file: plan.bodyFile, outline: outline(plan.json) }
+        : plan.json;
     const bodyText = body === undefined ? "" : JSON.stringify(body);
     return jsonResult({
       dryRun: true,
@@ -169,7 +178,7 @@ async function execute(ctx: ToolContext, plan: Plan, confirm: string | undefined
     query: plan.query,
     json: plan.json,
     form,
-    log: { changedFields: fields, snapshot },
+    log: { changedFields: fields, snapshot, ...(plan.bodyFile ? { file: plan.bodyFile } : {}) },
   });
   ctx.pending.forget(hash);
   return jsonResult({
@@ -210,18 +219,23 @@ function summariseResult(data: unknown, maxChars: number): unknown {
   return `${text.slice(0, 2000)}…`;
 }
 
-/** Reads the current record through the resource's get op (logged as a read). */
+/**
+ * Reads the current record through the resource's get op (logged as a read). `query` carries the
+ * caller's query values that the get op also takes (e.g. flowType: SUBFLOW).
+ */
 async function readCurrent(
   ctx: ToolContext,
   tool: string,
   entry: RegistryEntry,
   id: string,
   parentId: string | undefined,
+  query?: QueryInput,
 ): Promise<Record<string, unknown> | undefined> {
   const getOp = findOp(entry, "get");
   if (!getOp) return undefined;
   const pathParams = buildPathParams(entry, getOp, { id, parentId });
-  const res = await callApi(ctx, { tool, phase: "read", entry, op: getOp, id, pathParams, query: {} });
+  const getQuery = buildQuery(entry, getOp, sharedQuery(getOp, query));
+  const res = await callApi(ctx, { tool, phase: "read", entry, op: getOp, id, pathParams, query: getQuery });
   const data = stripLinks(res.data);
   if (!isPlainObject(data)) throw new ToolError(`${entry.key} ${id}: unexpected response when reading the current record`);
   return data;
@@ -288,42 +302,64 @@ const file = z
   .optional()
   .describe("Upload: local path, or text to speak (audio)");
 const record = z.record(z.string(), z.unknown());
+const queryArg = z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]));
+const bodyFile = z.string().optional().describe("Local .json file as the body (relative: export_dir)");
+
+/** Exactly one of an inline body or a bodyFile; the file is read now so the plan hash covers it. */
+function bodyFrom(ctx: ToolContext, body: unknown, file: string | undefined): { json: unknown; file?: string } {
+  if (file === undefined) return { json: body };
+  if (body !== undefined) throw new ToolError("give body or bodyFile, not both");
+  const loaded = loadJson(file, ctx.config.exportDir);
+  return { json: loaded.data, file: loaded.path };
+}
 
 export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
     "wxcc-ext-create",
     {
       description: "Create a record. Dry-runs unless confirm is given. Fields: describe-resource.",
-      inputSchema: { resource, body: record, parentId, file, confirm },
+      inputSchema: { resource, body: record.optional(), bodyFile, parentId, file, confirm },
       annotations: { destructiveHint: false },
     },
     handler(
       ctx,
       "wxcc-ext-create",
-      async (args: { resource: string; body: Record<string, unknown>; parentId?: string; file?: FileInput; confirm?: string }) => {
+      async (args: {
+        resource: string;
+        body?: Record<string, unknown>;
+        bodyFile?: string;
+        parentId?: string;
+        file?: FileInput;
+        confirm?: string;
+      }) => {
         const entry = ctx.catalog.resolve(args.resource);
         const op = findOp(entry, "create");
         if (!op) throw new ToolError(`${entry.key} does not support create`);
+        const source = bodyFrom(ctx, args.body, args.bodyFile);
+        if (!isPlainObject(source.json)) throw new ToolError(args.bodyFile ? "bodyFile must hold a JSON object" : "create needs body or bodyFile");
+        const body = source.json;
         const warnings: string[] = [];
-        if ("id" in args.body) warnings.push("body.id is ignored by create; use wxcc-ext-update for existing records");
+        if ("id" in body) warnings.push("body.id is ignored by create; use wxcc-ext-update for existing records");
         const plan: Plan = {
           tool: "wxcc-ext-create",
           entry,
           op,
           pathParams: buildPathParams(entry, op, { parentId: args.parentId }),
           before: [],
-          changes: diff({}, args.body),
-          summary: `create ${entry.key}${label(args.body)}`,
+          changes: source.file ? [] : diff({}, body),
+          summary: `create ${entry.key}${label(body)}${source.file ? ` from ${source.file}` : ""}`,
           warnings,
           showBody: true,
+          ...(source.file ? { bodyFile: source.file } : {}),
         };
         if (op.multipartParts) {
-          plan.upload = uploadFor(ctx, entry, op, args.body, args.file, warnings);
+          if (source.file) throw new ToolError(`${entry.key} create takes an upload; bodyFile is not supported`);
+          plan.upload = uploadFor(ctx, entry, op, body, args.file, warnings);
         } else {
           if (args.file) throw new ToolError(`${entry.key} create takes no file`);
-          const missing = entry.requiredOnCreate.filter((f) => !(f in args.body));
+          const missing = entry.requiredOnCreate.filter((f) => !(f in body));
           if (missing.length) warnings.push(`the API lists these as required: ${missing.join(", ")}`);
-          plan.json = args.body;
+          plan.json = body;
         }
         return execute(ctx, plan, args.confirm);
       },
@@ -411,14 +447,15 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
     "wxcc-ext-delete",
     {
       description: "Delete a record by id. Dry-runs unless confirm is given; the record is snapshotted first.",
-      inputSchema: { resource, id: z.string(), parentId, confirm },
+      inputSchema: { resource, id: z.string(), parentId, query: queryArg.optional(), confirm },
     },
-    handler(ctx, "wxcc-ext-delete", async (args: { resource: string; id: string; parentId?: string; confirm?: string }) => {
+    handler(ctx, "wxcc-ext-delete", async (args: { resource: string; id: string; parentId?: string; query?: QueryInput; confirm?: string }) => {
       const tool = "wxcc-ext-delete";
       const entry = ctx.catalog.resolve(args.resource);
       const op = findOp(entry, "delete");
       if (!op) throw new ToolError(`${entry.key} does not support delete`);
-      const current = await readCurrent(ctx, tool, entry, args.id, args.parentId);
+      const query = buildQuery(entry, op, args.query ?? {});
+      const current = await readCurrent(ctx, tool, entry, args.id, args.parentId, args.query);
       return execute(
         ctx,
         {
@@ -427,6 +464,7 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
           op,
           id: args.id,
           pathParams: buildPathParams(entry, op, { id: args.id, parentId: args.parentId }),
+          query,
           before: current ? [{ id: args.id, data: current }] : [],
           changes: [{ path: "(record)", before: current ? `${args.id}${label(current)}` : args.id }],
           summary: `delete ${entry.key} ${args.id}${label(current)}`,
@@ -526,7 +564,7 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
     "wxcc-ext-action",
     {
       description:
-        "Run a named non-CRUD operation from describe-resource (e.g. purge-inactive, reassign-agents, reskill). " +
+        "Run a named non-CRUD operation from describe-resource (e.g. purge-inactive, reassign-agents, unlock). " +
         "fetch-* actions only read and run at once; others dry-run unless confirm is given.",
       inputSchema: {
         resource,
@@ -534,8 +572,9 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
         id: z.string().optional(),
         parentId,
         params: z.record(z.string(), z.string()).optional().describe("Other path params"),
-        query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).optional(),
+        query: queryArg.optional(),
         body: z.unknown().optional(),
+        bodyFile,
         confirm,
       },
     },
@@ -550,6 +589,7 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
         params?: Record<string, string>;
         query?: QueryInput;
         body?: unknown;
+        bodyFile?: string;
         confirm?: string;
       }) => {
         const tool = "wxcc-ext-action";
@@ -559,17 +599,20 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
           const names = actionNames(entry);
           throw new ToolError(`${entry.key} has no action "${args.action}"${names.length ? ` (actions: ${names.join(", ")})` : ""}`);
         }
-        if (args.body !== undefined && !op.hasBody) throw new ToolError(`${entry.key} ${args.action} takes no body`);
+        if ((args.body !== undefined || args.bodyFile !== undefined) && !op.hasBody) {
+          throw new ToolError(`${entry.key} ${args.action} takes no body`);
+        }
         if (op.multipartParts) throw new ToolError(`${entry.key} ${args.action} needs an upload, which actions do not support`);
+        const source = bodyFrom(ctx, args.body, args.bodyFile);
         const pathParams = buildPathParams(entry, op, { id: args.id, parentId: args.parentId, params: args.params });
         const query = buildQuery(entry, op, args.query ?? {});
 
         if (args.action.startsWith("fetch-")) {
-          const res = await callApi(ctx, { tool, phase: "read", entry, op, id: args.id, pathParams, query, json: args.body });
+          const res = await callApi(ctx, { tool, phase: "read", entry, op, id: args.id, pathParams, query, json: source.json });
           return shapeResult(entry.key, res.data, ctx.config.maxResponseChars, "narrow the request body or page through results");
         }
 
-        const current = pathParams.id ? await readCurrent(ctx, tool, entry, pathParams.id, args.parentId) : undefined;
+        const current = pathParams.id ? await readCurrent(ctx, tool, entry, pathParams.id, args.parentId, args.query) : undefined;
         return execute(
           ctx,
           {
@@ -579,12 +622,15 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
             id: pathParams.id,
             pathParams,
             query,
-            json: args.body,
+            json: source.json,
             before: current && pathParams.id ? [{ id: pathParams.id, data: current }] : [],
             changes: [],
-            summary: `${args.action} on ${entry.key}${pathParams.id ? ` ${pathParams.id}${label(current)}` : ""}`,
+            summary:
+              `${args.action} on ${entry.key}${pathParams.id ? ` ${pathParams.id}${label(current)}` : ""}` +
+              `${source.file ? ` from ${source.file}${label(source.json)}` : ""}`,
             warnings: [],
             showBody: true,
+            ...(source.file ? { bodyFile: source.file } : {}),
           },
           args.confirm,
         );

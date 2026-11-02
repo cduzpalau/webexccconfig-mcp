@@ -1,13 +1,15 @@
 /**
- * Snapshots the Webex Contact Center Configuration API specs embedded in developer.webex.com.
+ * Snapshots Webex Contact Center API specs embedded in developer.webex.com.
  *
  * Every API reference page server-renders `window.__INITIAL_STATE__`, whose side navigation
  * carries the OpenAPI operation spec of every Contact Center endpoint. This script fetches one
- * page, walks to "API Reference (Contact Center)" → "Webex Contact Center: Configuration",
- * validates each operation and writes apireference/openapi/configuration.json.
+ * page, walks to "API Reference (Contact Center)" → each section in SECTIONS, validates each
+ * operation and writes one file per section under apireference/openapi/:
+ *   configuration.json  "Webex Contact Center: Configuration" (all groups)
+ *   flows.json          "Webex Contact Center: Flow Orchestration" → "Flow Orchestration: Flows"
  *
- * Manual, needs network: `npm run fetch:spec [-- <page url>]`. The page content is untrusted:
- * it is only JSON-parsed and validated, never evaluated.
+ * Manual, needs network: `npm run fetch:spec [-- [--only <name>] [<page url>]]`. The page content
+ * is untrusted: it is only JSON-parsed and validated, never evaluated.
  */
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -15,11 +17,41 @@ import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
 
 const ROOT = resolve(import.meta.dirname, "..");
-export const SPEC_FILE = join(ROOT, "apireference", "openapi", "configuration.json");
+export const SPEC_DIR = join(ROOT, "apireference", "openapi");
 const DEFAULT_URL =
   "https://developer.webex.com/webex-contact-center/docs/api/v1/desktop-layout/update-specific-desktop-layout-by-id";
 const API_REFERENCE_TITLE = "API Reference (Contact Center)";
-const SECTION_TITLE = "Webex Contact Center: Configuration";
+
+export interface SectionSpec {
+  /** Short name, also the file name: apireference/openapi/<name>.json. */
+  name: string;
+  /** Section title under "API Reference (Contact Center)". */
+  title: string;
+  /** Only these groups of the section; all groups when omitted. */
+  groups?: string[];
+  /** Every operation path must start with this. */
+  pathPrefix: string;
+  /** Removed from group titles, e.g. "Configuration: Team" → "Team". */
+  groupTitlePrefix: RegExp;
+}
+
+export const SECTIONS: SectionSpec[] = [
+  {
+    name: "configuration",
+    title: "Webex Contact Center: Configuration",
+    pathPrefix: "/organization/{orgid}",
+    groupTitlePrefix: /^Configuration:\s*/,
+  },
+  {
+    name: "flows",
+    title: "Webex Contact Center: Flow Orchestration",
+    groups: ["Flow Orchestration: Flows"],
+    pathPrefix: "/{orgId}/project/{projectId}",
+    groupTitlePrefix: /^Flow Orchestration:\s*/,
+  },
+];
+
+export const specFile = (name: string) => join(SPEC_DIR, `${name}.json`);
 
 const parameterSchema = z
   .object({
@@ -32,7 +64,7 @@ const parameterSchema = z
 const operationSchema = z
   .object({
     method: z.string().transform((m) => m.toUpperCase()).pipe(z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"])),
-    path: z.string().startsWith("/organization/{orgid}"),
+    path: z.string().startsWith("/"),
     operationId: z.string().min(1),
     summary: z.string().optional(),
     description: z.string().optional(),
@@ -95,14 +127,21 @@ export function extractInitialState(html: string): unknown {
   return JSON.parse(json);
 }
 
-export function collectOperations(state: unknown): Collected {
+export function collectOperations(state: unknown, spec: SectionSpec = SECTIONS[0]!): Collected {
   const menus = (state as { sideNavigation?: { sideNavigationData?: { subMenu?: NavNode[] } } })
     ?.sideNavigation?.sideNavigationData?.subMenu;
   if (!Array.isArray(menus)) throw new Error("sideNavigation.sideNavigationData.subMenu missing");
   const apiRef = menus.find((m) => m.title === API_REFERENCE_TITLE);
   if (!apiRef) throw new Error(`"${API_REFERENCE_TITLE}" not found in navigation`);
-  const section = apiRef.subMenu?.find((m) => m.title === SECTION_TITLE);
-  if (!section?.subMenu) throw new Error(`"${SECTION_TITLE}" not found in navigation`);
+  const section = apiRef.subMenu?.find((m) => m.title === spec.title);
+  if (!section?.subMenu) throw new Error(`"${spec.title}" not found in navigation`);
+  const groups = spec.groups
+    ? spec.groups.map((g) => {
+        const found = section.subMenu!.find((m) => m.title === g);
+        if (!found) throw new Error(`"${g}" not found in "${spec.title}"`);
+        return found;
+      })
+    : section.subMenu;
 
   const out: Record<string, SpecOperation> = {};
   const apis: Record<string, string> = {};
@@ -122,6 +161,10 @@ export function collectOperations(state: unknown): Collected {
       }
       const op = parsed.spec;
       const key = `${op.method} ${op.path}`;
+      if (!op.path.startsWith(spec.pathPrefix)) {
+        problems.push(`${key}: path does not start with ${spec.pathPrefix}`);
+        continue;
+      }
       if (out[key]) {
         problems.push(`duplicate operation ${key} (${node.url})`);
         continue;
@@ -137,7 +180,7 @@ export function collectOperations(state: unknown): Collected {
       apis[parsed.meta.info.title] ??= parsed.meta.info.description ?? "";
     }
   };
-  for (const group of section.subMenu) visit(group, (group.title ?? "").replace(/^Configuration:\s*/, ""));
+  for (const group of groups) visit(group, (group.title ?? "").replace(spec.groupTitlePrefix, ""));
   if (problems.length) throw new Error(`invalid operations:\n  ${problems.join("\n  ")}`);
   if (Object.keys(out).length === 0) throw new Error("no operations found");
   return { operations: sortKeys(out), apis: sortKeys(apis) };
@@ -201,30 +244,44 @@ function summariseDrift(prev: SpecFile | undefined, next: SpecFile): string {
   return lines.join("\n");
 }
 
-async function main(): Promise<void> {
-  const url = process.argv[2] ?? DEFAULT_URL;
-  if (!url.startsWith("https://developer.webex.com/")) throw new Error("only developer.webex.com pages are supported");
-  const res = await fetch(url, { headers: { Accept: "text/html" }, signal: AbortSignal.timeout(120_000) });
-  if (!res.ok) throw new Error(`GET ${url} → ${res.status}`);
-  const html = await res.text();
-
-  const collected = collectOperations(extractInitialState(html));
+/** Builds the snapshot of one section from the page state. */
+export function buildSpecFile(state: unknown, section: SectionSpec, url: string, fetchedAt: string): SpecFile {
+  const collected = collectOperations(state, section);
   const { operations, sharedResponses } = shareResponses(collected.operations);
-  const next: SpecFile = {
+  return {
     _source: {
       url,
-      fetchedAt: new Date().toISOString().slice(0, 10),
-      section: SECTION_TITLE,
+      fetchedAt,
+      section: section.groups ? `${section.title} → ${section.groups.join(", ")}` : section.title,
       operationCount: Object.keys(operations).length,
     },
     apis: collected.apis,
     sharedResponses,
     operations,
   };
-  const prev = existsSync(SPEC_FILE) ? (JSON.parse(readFileSync(SPEC_FILE, "utf8")) as SpecFile) : undefined;
-  mkdirSync(dirname(SPEC_FILE), { recursive: true });
-  writeFileSync(SPEC_FILE, JSON.stringify(next, null, 1) + "\n");
-  console.log(`wrote ${SPEC_FILE}\n${summariseDrift(prev, next)}`);
+}
+
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  const onlyAt = args.indexOf("--only");
+  const only = onlyAt >= 0 ? args.splice(onlyAt, 2)[1] : undefined;
+  const sections = only ? SECTIONS.filter((s) => s.name === only) : SECTIONS;
+  if (!sections.length) throw new Error(`unknown section "${only}" (sections: ${SECTIONS.map((s) => s.name).join(", ")})`);
+  const url = args[0] ?? DEFAULT_URL;
+  if (!url.startsWith("https://developer.webex.com/")) throw new Error("only developer.webex.com pages are supported");
+  const res = await fetch(url, { headers: { Accept: "text/html" }, signal: AbortSignal.timeout(120_000) });
+  if (!res.ok) throw new Error(`GET ${url} → ${res.status}`);
+  const state = extractInitialState(await res.text());
+  const fetchedAt = new Date().toISOString().slice(0, 10);
+
+  for (const section of sections) {
+    const file = specFile(section.name);
+    const next = buildSpecFile(state, section, url, fetchedAt);
+    const prev = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as SpecFile) : undefined;
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, JSON.stringify(next, null, 1) + "\n");
+    console.log(`wrote ${file}\n${summariseDrift(prev, next)}`);
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

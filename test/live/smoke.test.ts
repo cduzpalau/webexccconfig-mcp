@@ -7,7 +7,7 @@
  * creates are named wxcc_ext_smoke_*, and leftovers from earlier runs are swept afterwards.
  * Every write goes through the real tools (dry-run, then confirm).
  */
-import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -75,6 +75,7 @@ describe.skipIf(!LIVE)("live smoke (sandbox)", () => {
       mode: "read-write",
       logDir: mkdtempSync(join(tmpdir(), "wxcc-ext-live-log-")),
       snapshotDir: mkdtempSync(join(tmpdir(), "wxcc-ext-live-snap-")),
+      exportDir: mkdtempSync(join(tmpdir(), "wxcc-ext-live-export-")),
     };
     const client = new WxccClient({ baseUrl: config.baseUrl, orgId: config.orgId, tokenProvider: tokens });
     const [a, b] = InMemoryTransport.createLinkedPair();
@@ -92,6 +93,12 @@ describe.skipIf(!LIVE)("live smoke (sandbox)", () => {
       if (res.isError) continue;
       for (const r of res.json().data as Array<{ id: string; name?: string }>) {
         if (r.name?.startsWith(PREFIX) && !created.some((c) => c.id === r.id)) created.push({ resource, id: r.id });
+      }
+    }
+    const flows = await call("wxcc-ext-list", { resource: "flow", pageSize: 100, query: { partialNameSearch: PREFIX } });
+    if (!flows.isError) {
+      for (const f of flows.json().data as Array<{ id: string; name?: string }>) {
+        if (f.name?.startsWith(PREFIX) && !created.some((c) => c.id === f.id)) created.push({ resource: "flow", id: f.id });
       }
     }
     for (const c of created) {
@@ -240,6 +247,40 @@ describe.skipIf(!LIVE)("live smoke (sandbox)", () => {
     expect((await call("wxcc-ext-get", { resource: "audio-file", id })).json()).toMatchObject({ name, contentType: "AUDIO_WAV" });
     await apply("wxcc-ext-delete", { resource: "audio-file", id });
     created.splice(created.findIndex((c) => c.id === id), 1);
+  }, 120_000);
+
+  it("exports a flow to a file, imports a renamed copy, unlocks it and deletes it", async () => {
+    const list = await call("wxcc-ext-list", { resource: "flow", pageSize: 20 });
+    expect(list.isError, list.text).toBe(false);
+    const source = (list.json().data as Array<{ id: string; name: string }>).find((f) => !f.name.startsWith(PREFIX));
+    expect(source, "the sandbox needs at least one flow").toBeDefined();
+
+    const exported = await call("wxcc-ext-get", {
+      resource: "flow",
+      id: source!.id,
+      view: "export",
+      query: { version: "draft" },
+      saveTo: `${RUN}-source.json`,
+    });
+    expect(exported.isError, exported.text).toBe(false);
+    const doc = JSON.parse(readFileSync(exported.json().saved, "utf8")) as Record<string, unknown>;
+    expect(typeof doc.name).toBe("string");
+
+    const copyName = `${RUN}_flow`;
+    writeFileSync(join(config.exportDir, `${RUN}-copy.json`), JSON.stringify({ ...doc, name: copyName }));
+    const imported = await apply("wxcc-ext-action", { resource: "flow", action: "import", bodyFile: `${RUN}-copy.json` });
+    expect(imported.httpStatus).toBeLessThan(300);
+
+    const found = await call("wxcc-ext-list", { resource: "flow", query: { partialNameSearch: copyName } });
+    const copy = (found.json().data as Array<{ id: string; name: string }>).find((f) => f.name === copyName);
+    expect(copy, found.text).toBeDefined();
+    created.push({ resource: "flow", id: copy!.id });
+
+    await apply("wxcc-ext-action", { resource: "flow", action: "unlock", id: copy!.id });
+    await apply("wxcc-ext-delete", { resource: "flow", id: copy!.id });
+    created.splice(created.findIndex((c) => c.id === copy!.id), 1);
+    const gone = await call("wxcc-ext-get", { resource: "flow", id: copy!.id });
+    expect(gone.isError).toBe(true);
   }, 120_000);
 
   it("reads singletons without an id", async () => {

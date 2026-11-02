@@ -7,6 +7,7 @@ import { resolveConfig } from "../src/config.js";
 import { fingerprint, PendingPlans, planHash, stableStringify } from "../src/write/confirm.js";
 import { createFileProcessor, missingAudioTools } from "../src/write/files.js";
 import { changedFields, deepMerge, diff, presentChanges } from "../src/write/merge.js";
+import { loadJson, outline, resolveJsonPath, saveJson } from "../src/write/jsonfile.js";
 import { SnapshotStore } from "../src/write/snapshot.js";
 
 describe("deepMerge", () => {
@@ -56,7 +57,9 @@ describe("confirmation", () => {
   });
   it("fingerprints by version, then lastUpdatedTime, then content", () => {
     expect(fingerprint({ version: 3, lastUpdatedTime: 9 })).toBe("v3");
-    expect(fingerprint({ lastUpdatedTime: 9 })).toBe("t9");
+    expect(fingerprint({ lastUpdatedTime: 9 })).toMatch(/^t9-[0-9a-f]{8}$/);
+    // Same second, different content: still a different fingerprint.
+    expect(fingerprint({ lastUpdatedTime: 9, a: 1 })).not.toBe(fingerprint({ lastUpdatedTime: 9, a: 2 }));
     expect(fingerprint({ a: 1 })).toMatch(/^h[0-9a-f]{16}$/);
     expect(fingerprint(undefined)).toBeUndefined();
   });
@@ -70,6 +73,32 @@ describe("confirmation", () => {
   });
 });
 
+describe("json files", () => {
+  it("resolves relative paths under export_dir, expands ~ and requires .json", () => {
+    expect(resolveJsonPath("a/b.json", "/exp", "/home/u")).toBe("/exp/a/b.json");
+    expect(resolveJsonPath("~/f.json", "/exp", "/home/u")).toBe("/home/u/f.json");
+    expect(resolveJsonPath("/abs/../x.JSON", "/exp", "/home/u")).toBe("/x.JSON");
+    expect(() => resolveJsonPath("x.txt", "/exp")).toThrow(/must end in .json/);
+    expect(() => resolveJsonPath("  ", "/exp")).toThrow(/empty/);
+  });
+  it("saves without overwriting and loads back", () => {
+    const dir = mkdtempSync(join(tmpdir(), "wxcc-ext-json-"));
+    const saved = saveJson("sub/f.json", { a: 1 }, dir);
+    expect(saved.path).toBe(join(dir, "sub", "f.json"));
+    expect(() => saveJson("sub/f.json", { a: 2 }, dir)).toThrow(/already exists/);
+    expect(loadJson("sub/f.json", dir).data).toEqual({ a: 1 });
+  });
+  it("outlines large bodies", () => {
+    expect(outline({ name: "x", nodes: [1, 2], meta: { a: 1 }, long: "y".repeat(200) })).toEqual({
+      name: "x",
+      nodes: "[2 items]",
+      meta: "{1 fields}",
+      long: `${"y".repeat(117)}…`,
+    });
+    expect(outline([1, 2, 3])).toBe("[3 items]");
+  });
+});
+
 describe("SnapshotStore", () => {
   it("writes per resource/id with a timestamped name and sanitised segments", () => {
     const dir = mkdtempSync(join(tmpdir(), "wxcc-ext-snap-"));
@@ -77,7 +106,10 @@ describe("SnapshotStore", () => {
     const p = store.save("team", "../../etc", { id: "x" });
     expect(p).toBe(join(dir, "team", ".._.._etc", "2026-10-30T12-34-56.789Z.json"));
     expect(JSON.parse(readFileSync(p, "utf8"))).toEqual({ id: "x" });
-    expect(() => store.save("team", "../../etc", {})).toThrow(); // never overwrites
+    // Same millisecond: a new file with a suffix, never an overwrite.
+    const second = store.save("team", "../../etc", { id: "y" });
+    expect(second).toBe(join(dir, "team", ".._.._etc", "2026-10-30T12-34-56.789Z-1.json"));
+    expect(JSON.parse(readFileSync(p, "utf8"))).toEqual({ id: "x" });
   });
 });
 

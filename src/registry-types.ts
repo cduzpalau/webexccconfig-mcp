@@ -36,19 +36,21 @@ export interface RegistryOperation {
   /** Set for view/action ops, e.g. "reassign-agents", "purge-inactive". */
   name?: string;
   method: HttpMethod;
-  /** Path template, e.g. "/organization/{orgid}/v2/team/{id}". */
+  /** Path template, e.g. "/organization/{orgid}/v2/team/{id}" or "/{orgid}/project/<id>/flows". */
   path: string;
   apiVersion: number;
   /** Placeholders other than {orgid}. */
   pathParams: string[];
   queryParams: QueryParam[];
+  /** Query values sent when the caller gives none: safer than the API's own defaults. */
+  sendDefaults?: Record<string, string>;
   hasBody: boolean;
   bodyEncoding?: "json" | "multipart";
   /** For multipart bodies: the binary part and the JSON part carrying the record's fields. */
   multipartParts?: { file: string; json: string };
   paginated: boolean;
   summary: string;
-  /** Key of the source operation in apireference/openapi/configuration.json. */
+  /** Key of the source operation ("METHOD path") in apireference/openapi/*.json. */
   source: string;
 }
 

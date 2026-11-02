@@ -7,6 +7,7 @@ import { z } from "zod";
 import { TOOLSETS } from "../config.js";
 import { SCHEMA_LOADERS } from "../registry/index.js";
 import type { QueryParam, RegistryEntry, RegistryOperation } from "../registry-types.js";
+import { saveJson } from "../write/jsonfile.js";
 import { actionNames, findOp, ToolError, viewNames } from "./catalog.js";
 import {
   buildPathParams,
@@ -63,6 +64,7 @@ function describeOp(op: RegistryOperation) {
     summary: op.summary,
     ...(op.pathParams.length ? { pathParams: op.pathParams } : {}),
     ...(op.queryParams.length ? { query: op.queryParams.map(describeParam) } : {}),
+    ...(op.sendDefaults ? { sends: op.sendDefaults } : {}),
     ...(op.hasBody ? { body: op.bodyEncoding } : {}),
   };
 }
@@ -130,7 +132,8 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
         operations: entry.operations.map(describeOp),
         usage:
           "list/get take view for views; parentId for child resources; params for other path params; " +
-          "query for extra query params. Actions run through wxcc-ext-action (read-write mode).",
+          "query for extra query params. get with saveTo writes the full response to a local JSON file. " +
+          "Actions run through wxcc-ext-action (read-write mode); bodyFile reads a body from a local JSON file.",
       };
 
       let schemaKey: string | undefined;
@@ -216,6 +219,11 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
         for (const k of ["filter", "search", "attributes", "sort", "page", "pageSize"] as const) {
           if (args[k] !== undefined) named[k] = args[k]!;
         }
+        // Some APIs (flows) call the page size "size".
+        if (named.pageSize !== undefined && !op.queryParams.some((p) => p.name === "pageSize") && op.queryParams.some((p) => p.name === "size")) {
+          named.size = named.pageSize;
+          delete named.pageSize;
+        }
         const query = buildQuery(entry, op, { ...args.query, ...named });
         const pathParams = buildPathParams(entry, op, { parentId: args.parentId, params: args.params });
         const res = await callApi(ctx, { tool: "wxcc-ext-list", phase: "read", entry, op, pathParams, query });
@@ -229,11 +237,12 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
     {
       description:
         "Get one record by id; singletons need no id. view: references lists the entities that use the record; " +
-        "other views come from describe-resource.",
+        "other views come from describe-resource. saveTo writes the response to a local file instead.",
       inputSchema: {
         resource,
         id: z.string().optional(),
         ...common,
+        saveTo: z.string().optional().describe("New local .json file (relative: export_dir)"),
       },
       annotations: READ_ANNOTATIONS,
     },
@@ -247,10 +256,12 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
         parentId?: string;
         params?: Record<string, string>;
         query?: QueryInput;
+        saveTo?: string;
       }) => {
         const entry = ctx.catalog.resolve(args.resource);
 
         if (!args.view && !args.id && entry.singleton) {
+          if (args.saveTo) throw new ToolError("saveTo needs an id or a view");
           const op = readOp(entry, undefined, "list");
           const res = await callApi(ctx, { tool: "wxcc-ext-get", phase: "read", entry, op, pathParams: {}, query: {} });
           const rows = isObject(res.data) && Array.isArray(res.data.data) ? res.data.data : undefined;
@@ -263,6 +274,17 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
         const query = buildQuery(entry, op, args.query ?? {});
         const pathParams = buildPathParams(entry, op, { id: args.id, parentId: args.parentId, params: args.params });
         const res = await callApi(ctx, { tool: "wxcc-ext-get", phase: "read", entry, op, id: args.id, pathParams, query });
+        if (args.saveTo) {
+          const saved = saveJson(args.saveTo, res.data, ctx.config.exportDir);
+          ctx.oplog.record({ tool: "wxcc-ext-get", phase: "local", resource: entry.key, id: args.id, op: opLabel(op), status: "ok", file: saved.path });
+          const data = isObject(res.data) ? res.data : {};
+          return jsonResult({
+            saved: saved.path,
+            bytes: saved.bytes,
+            ...(typeof data.name === "string" ? { name: data.name } : {}),
+            ...(typeof data.flowType === "string" ? { flowType: data.flowType } : {}),
+          });
+        }
         return shapeResult(entry.key, res.data, ctx.config.maxResponseChars, args.view ? LIST_HINT : GET_HINT);
       },
     ),

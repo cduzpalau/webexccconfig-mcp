@@ -2,14 +2,17 @@
  * Hand-maintained input to scripts/gen-registry.ts: which API path belongs to which registry
  * resource, plus what the specs cannot express (keys, aliases, toolsets, singletons, op names).
  *
- * Every non-deprecated operation in apireference/openapi/configuration.json must match exactly
- * one `base` here (longest match wins), or the generator fails.
+ * Every non-deprecated operation in apireference/openapi/*.json must match exactly one `base`
+ * here (longest match wins), or the generator fails.
  */
 import type { Toolset } from "../src/config.js";
 
 export interface ResourceOverride {
   key: string;
-  /** Path after /organization/{orgid}, version segments removed; `{x}` matches any placeholder. */
+  /**
+   * Path after the prefix (/organization/{orgid} or /{orgid}/project/<projectId>), version
+   * segments removed and colon verbs split off; `{x}` matches any placeholder.
+   */
   base: string;
   displayName: string;
   aliases?: string[];
@@ -20,7 +23,26 @@ export interface ResourceOverride {
   rename?: Record<string, string>;
   /** Names for specific source operations ("METHOD path"), for when two ops derive the same name. */
   nameBySource?: Record<string, string>;
+  /** Replaces the API group description (when the group covers more than this server exposes). */
+  description?: string;
+  /** The spec's name for this resource's id placeholder, renamed to {id} (e.g. flowId). */
+  idParam?: string;
+  /** Allowlist of source operations ("METHOD path"); all others are excluded. Omit to expose all. */
+  operations?: string[];
+  /** Allowed values for query params the spec only describes in prose. */
+  queryEnums?: Record<string, string[]>;
+  /** Query values sent when the caller gives none, keyed by op ("delete", "view:export"). */
+  sendDefaults?: Record<string, Record<string, string>>;
 }
+
+/**
+ * Path placeholders with one documented value, written into registry paths as literals. Flow
+ * Orchestration: "The project ID is a system-generated value that is the same across orgs and
+ * environments — always use 5e5c9ad6d61f870d6d778c1b."
+ */
+export const FIXED_PATH_PARAMS: Record<string, string> = { projectId: "5e5c9ad6d61f870d6d778c1b" };
+
+const FLOWS = "/{orgId}/project/{projectId}";
 
 /** Fields stripped from merged PUT bodies in addition to those the spec marks readOnly. */
 export const ALWAYS_READ_ONLY = ["createdTime", "lastUpdatedTime"];
@@ -85,6 +107,28 @@ export const RESOURCES: ResourceOverride[] = [
     toolset: "telephony",
   },
   { key: "entry-point", base: "entry-point", displayName: "Entry Point", toolset: "routing" },
+  {
+    // Only the operations the official server lacks: drafts, publish, validate and lock stay there.
+    key: "flow",
+    base: "flows",
+    displayName: "Flow",
+    toolset: "flow",
+    description:
+      "Flows and subflows built in Flow Designer. This server lists, reads, exports, imports, unlocks and deletes " +
+      "them; pass query flowType: SUBFLOW for subflows (default FLOW). Export a flow before deleting it: deletes " +
+      "are permanent.",
+    idParam: "flowId",
+    operations: [
+      `GET ${FLOWS}/flows`,
+      `GET ${FLOWS}/v2/flows/{flowId}`,
+      `GET ${FLOWS}/v2/flows/{flowId}:export`,
+      `POST ${FLOWS}/v2/flows:import`,
+      `POST ${FLOWS}/flows/{flowId}:unlock`,
+      `DELETE ${FLOWS}/flows/{flowId}`,
+    ],
+    queryEnums: { flowType: ["FLOW", "SUBFLOW"], force: ["yes", "no"] },
+    sendDefaults: { list: { includePagination: "true" }, delete: { skipRsEPCheck: "false" } },
+  },
   {
     key: "global-variable",
     base: "cad-variable",

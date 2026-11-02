@@ -18,15 +18,20 @@ org_id: 00000000-0000-0000-0000-000000000000
 mode: read-only
 
 # Toolsets to enable (default: all).
-# toolsets: [routing, agent, telephony, media, data, schedule, org, digital, ai]
+# toolsets: [routing, agent, telephony, media, data, schedule, org, digital, ai, flow]
 
-# Resources this server never exposes. These are the ones currently covered by official WxCC MCP server as of November 2026
-# defer_to_official: [flow, entry-point, business-hours, dial-plan, dial-number]
-defer_to_oficial: []
+# Resources this server never exposes. Leaving this out applies the default list in the comment
+# below: the admin configuration the official WxCC MCP server writes, as of November 2026.
+# [] defers nothing. Add `flow` to leave flows entirely to Cisco's official server.
+# defer_to_official: [entry-point, business-hours, dial-plan, dial-number]
+defer_to_official: []
 
 # Operation log and snapshots.
 # log_dir: ~/.wxcc-ext/logs
 # snapshot_dir: ~/.wxcc-ext/snapshots
+
+# Where relative saveTo (exports) and bodyFile (imports) paths resolve.
+# export_dir: ~/.wxcc-ext/exports
 
 # request_timeout_ms: 30000
 

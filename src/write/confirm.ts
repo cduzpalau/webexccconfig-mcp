@@ -26,7 +26,9 @@ export function fingerprint(record: unknown): string | undefined {
   if (typeof record === "object" && record !== null) {
     const r = record as Record<string, unknown>;
     if (typeof r.version === "number") return `v${r.version}`;
-    if (typeof r.lastUpdatedTime === "number") return `t${r.lastUpdatedTime}`;
+    // lastUpdatedTime has one-second resolution: two changes in the same second share it, so the
+    // content hash is added to catch them.
+    if (typeof r.lastUpdatedTime === "number") return `t${r.lastUpdatedTime}-${planHash(record).slice(0, 8)}`;
   }
   return `h${planHash(record)}`;
 }

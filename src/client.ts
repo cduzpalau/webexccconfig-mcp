@@ -1,9 +1,11 @@
 /**
  * The only module that talks to the Webex Contact Center REST API.
  *
- * Paths are registry templates such as `/organization/{orgid}/v2/team/{id}`. The client fills in
- * `{orgid}` from config and every other placeholder from `pathParams`, then maps API errors to
- * short, actionable messages. The token is only ever placed in the Authorization header.
+ * Paths are registry templates such as `/organization/{orgid}/v2/team/{id}` (Configuration) or
+ * `/{orgid}/project/<projectId>/flows/{id}` (Flows); both are served by the same regional gateway.
+ * The client fills in `{orgid}` from config and every other placeholder from `pathParams`, then
+ * maps API errors to short, actionable messages. The token is only ever placed in the
+ * Authorization header.
  */
 import type { TokenProvider } from "./auth.js";
 
@@ -12,7 +14,7 @@ export type QueryValue = string | number | boolean | string[] | undefined | null
 
 export interface RequestOptions {
   method: HttpMethod;
-  /** Path template starting with /organization/{orgid}. */
+  /** Path template starting with /organization/{orgid} or /{orgid}/. */
   path: string;
   pathParams?: Record<string, string>;
   query?: Record<string, QueryValue>;
@@ -102,8 +104,8 @@ export class WxccClient {
 
   /** Builds the full request URL for a path template. */
   buildUrl(path: string, pathParams: Record<string, string> = {}, query: Record<string, QueryValue> = {}): string {
-    if (!path.startsWith("/organization/{orgid}")) {
-      throw new WxccClientError(`path must start with /organization/{orgid}: ${path}`);
+    if (!path.startsWith("/organization/{orgid}") && !path.startsWith("/{orgid}/")) {
+      throw new WxccClientError(`path must start with /organization/{orgid} or /{orgid}/: ${path}`);
     }
     const filled = path.replace(/\{([^}]+)\}/g, (_, name: string) => {
       if (name === "orgid") return encodeURIComponent(this.#orgId);

@@ -26,6 +26,8 @@ export interface OpLogEntry {
   error?: string;
   changedFields?: string[];
   snapshot?: string;
+  /** Local JSON file written (saveTo) or read (bodyFile). */
+  file?: string;
 }
 
 export interface OperationLogOptions {

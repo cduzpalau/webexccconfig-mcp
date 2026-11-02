@@ -1,6 +1,6 @@
 /**
- * Generates src/registry/ from apireference/openapi/configuration.json (see scripts/fetch-spec.ts)
- * and scripts/registry-overrides.ts. Offline and deterministic.
+ * Generates src/registry/ from the spec snapshots in apireference/openapi/*.json (see
+ * scripts/fetch-spec.ts) and scripts/registry-overrides.ts. Offline and deterministic.
  *
  *   npm run gen:registry             write src/registry/
  *   npm run gen:registry -- --check  exit 1 if src/registry/ is out of date
@@ -16,13 +16,17 @@ import type {
   ResourceSchemaDoc,
   UpdateSemantics,
 } from "../src/registry-types.js";
-import type { SpecFile, SpecOperation } from "./fetch-spec.js";
-import { ALWAYS_READ_ONLY, RESOURCES, type ResourceOverride } from "./registry-overrides.js";
+import { SECTIONS, specFile, type SpecFile, type SpecOperation } from "./fetch-spec.js";
+import { ALWAYS_READ_ONLY, FIXED_PATH_PARAMS, RESOURCES, type ResourceOverride } from "./registry-overrides.js";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const SPEC_PATH = join(ROOT, "apireference", "openapi", "configuration.json");
 export const REGISTRY_DIR = join(ROOT, "src", "registry");
-const ORG_PREFIX = "/organization/{orgid}";
+
+/**
+ * Path prefixes the client knows how to fill. Spec paths are normalised onto these:
+ * `{orgId}` becomes `{orgid}` and fixed placeholders (FIXED_PATH_PARAMS) become literals.
+ */
+export const PATH_PREFIXES = ["/organization/{orgid}", `/{orgid}/project/${FIXED_PATH_PARAMS.projectId}`];
 
 const KIND_ORDER: OpKind[] = [
   "list",
@@ -49,15 +53,30 @@ export interface BuildResult {
   report: { deprecatedSkipped: number; excluded: string[]; superseded: string[]; emptyResources: string[] };
 }
 
-/** Splits a path into segments after /organization/{orgid}, removing /vN segments. */
+/**
+ * Rewrites a spec path into the registry form: `{orgId}` → `{orgid}`, fixed placeholders become
+ * literals, and the resource's own id placeholder (e.g. `{flowId}`) becomes `{id}`.
+ */
+export function normalisePath(path: string, idParam?: string): string {
+  let out = path.replace("{orgId}", "{orgid}");
+  for (const [name, value] of Object.entries(FIXED_PATH_PARAMS)) out = out.replaceAll(`{${name}}`, value);
+  if (idParam) out = out.replaceAll(`{${idParam}}`, "{id}");
+  return out;
+}
+
+/**
+ * Splits a registry path into segments after its prefix, removing /vN segments. Colon verbs
+ * become their own segment: `flows/{id}:export` → `flows`, `{id}`, `export`.
+ */
 export function parsePath(path: string): { segments: string[]; version: number } {
-  if (!path.startsWith(ORG_PREFIX)) throw new Error(`unexpected path: ${path}`);
+  const prefix = PATH_PREFIXES.find((p) => path === p || path.startsWith(`${p}/`));
+  if (!prefix) throw new Error(`unexpected path: ${path}`);
   let version = 1;
   const segments: string[] = [];
-  for (const seg of path.slice(ORG_PREFIX.length).split("/").filter(Boolean)) {
+  for (const seg of path.slice(prefix.length).split("/").filter(Boolean)) {
     const m = /^v(\d+)$/.exec(seg);
     if (m) version = Math.max(version, Number(m[1]));
-    else segments.push(seg);
+    else segments.push(...seg.split(":").filter(Boolean));
   }
   return { segments, version };
 }
@@ -123,6 +142,7 @@ export function buildRegistry(spec: SpecFile, overrides: ResourceOverride[] = RE
   const report: BuildResult["report"] = { deprecatedSkipped: 0, excluded: [], superseded: [], emptyResources: [] };
   const problems: string[] = [];
 
+  const idParams = [...new Set(overrides.map((o) => o.idParam).filter((p): p is string => !!p))];
   for (const [sourceKey, src] of Object.entries(spec.operations)) {
     const op = src.operation;
     if (op.deprecated) {
@@ -130,12 +150,19 @@ export function buildRegistry(spec: SpecFile, overrides: ResourceOverride[] = RE
       continue;
     }
     const method = op.method as HttpMethod;
-    const { segments, version } = parsePath(op.path);
+    // Match on a path with every known id placeholder normalised, then renormalise for the match.
+    const { segments } = parsePath(normalisePath(op.path, idParams.find((p) => op.path.includes(`{${p}}`))));
     const match = matchResource(segments, overrides);
     if (!match) {
       problems.push(`no resource for ${sourceKey}`);
       continue;
     }
+    if (match.override.operations && !match.override.operations.includes(sourceKey)) {
+      report.excluded.push(sourceKey);
+      continue;
+    }
+    const apiPath = normalisePath(op.path, match.override.idParam);
+    const { version } = parsePath(apiPath);
     const classified = classify(method, match.rest);
     if (!classified) {
       report.excluded.push(sourceKey);
@@ -145,7 +172,7 @@ export function buildRegistry(spec: SpecFile, overrides: ResourceOverride[] = RE
       ? (match.override.nameBySource?.[sourceKey] ?? match.override.rename?.[classified.name] ?? classified.name)
       : undefined;
     const schemaKey = name ? `${classified.kind}:${name}` : classified.kind;
-    const registryOp = toRegistryOperation(sourceKey, src, classified.kind, name, version);
+    const registryOp = toRegistryOperation(sourceKey, src, classified.kind, name, version, apiPath, match.override);
 
     const ops = byResource.get(match.override.key) ?? new Map<string, Candidate>();
     byResource.set(match.override.key, ops);
@@ -159,6 +186,11 @@ export function buildRegistry(spec: SpecFile, overrides: ResourceOverride[] = RE
       ops.set(schemaKey, { op: registryOp, src, schemaKey });
     } else {
       report.superseded.push(sourceKey);
+    }
+  }
+  for (const o of overrides) {
+    for (const source of o.operations ?? []) {
+      if (!spec.operations[source]) problems.push(`${o.key}: allowlisted operation not in spec: ${source}`);
     }
   }
   if (problems.length) throw new Error(`registry generation failed:\n  ${problems.join("\n  ")}`);
@@ -193,7 +225,7 @@ export function buildRegistry(spec: SpecFile, overrides: ResourceOverride[] = RE
     entries.push({
       key: o.key,
       displayName: o.displayName,
-      description: apiDescription(spec.apis[anySrc.apiTitle] ?? ""),
+      description: o.description ?? apiDescription(spec.apis[anySrc.apiTitle] ?? ""),
       aliases: o.aliases ?? [],
       toolset: o.toolset,
       singleton: o.singleton ?? false,
@@ -237,22 +269,30 @@ function toRegistryOperation(
   kind: OpKind,
   name: string | undefined,
   apiVersion: number,
+  path: string,
+  override: ResourceOverride,
 ): RegistryOperation {
   const op = src.operation;
   const body = bodySchema(src);
-  const qp = queryParams(src, false);
+  const qp = queryParams(src, false).map((p) => (override.queryEnums?.[p.name] ? { ...p, enum: override.queryEnums[p.name] } : p));
+  const opKey = name ? `${kind}:${name}` : kind;
+  const sendDefaults = override.sendDefaults?.[opKey];
+  for (const param of Object.keys(sendDefaults ?? {})) {
+    if (!qp.some((p) => p.name === param)) throw new Error(`${override.key} ${opKey}: sendDefaults names unknown query param ${param}`);
+  }
   return {
     kind,
     ...(name ? { name } : {}),
     method: op.method as HttpMethod,
-    path: op.path,
+    path,
     apiVersion,
-    pathParams: [...op.path.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]!).filter((p) => p !== "orgid"),
+    pathParams: [...path.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]!).filter((p) => p !== "orgid"),
     queryParams: qp,
+    ...(sendDefaults ? { sendDefaults } : {}),
     hasBody: body !== undefined,
     ...(body !== undefined ? { bodyEncoding: hasBinary(body) ? "multipart" : "json" } : {}),
     ...(hasBinary(body) ? { multipartParts: multipartParts(source, body) } : {}),
-    paginated: qp.some((p) => p.name === "page") && qp.some((p) => p.name === "pageSize"),
+    paginated: qp.some((p) => p.name === "page") && qp.some((p) => p.name === "pageSize" || p.name === "size"),
     summary: cleanText(op.summary ?? src.title),
     source,
   } as RegistryOperation;
@@ -371,7 +411,7 @@ function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-const HEADER = "// GENERATED by scripts/gen-registry.ts from apireference/openapi/configuration.json. Do not edit.\n";
+const HEADER = "// GENERATED by scripts/gen-registry.ts from apireference/openapi/*.json. Do not edit.\n";
 
 /** Renders the registry as files keyed by path relative to src/registry/. */
 export function render(result: BuildResult): Map<string, string> {
@@ -414,8 +454,30 @@ export function diffAgainstDisk(files: Map<string, string>, dir = REGISTRY_DIR):
   return stale.sort(cmp);
 }
 
-export function loadSpec(path = SPEC_PATH): SpecFile {
-  return JSON.parse(readFileSync(path, "utf8")) as SpecFile;
+/** Loads one snapshot, or all of them (one per fetch-spec section) merged into one. */
+export function loadSpec(path?: string): SpecFile {
+  if (path) return JSON.parse(readFileSync(path, "utf8")) as SpecFile;
+  return mergeSpecs(SECTIONS.map((s) => JSON.parse(readFileSync(specFile(s.name), "utf8")) as SpecFile));
+}
+
+/** Merges snapshots; operation keys ("METHOD path") must be unique across them. */
+export function mergeSpecs(specs: SpecFile[]): SpecFile {
+  const merged: SpecFile = {
+    _source: { url: "", fetchedAt: "", section: "", operationCount: 0 },
+    apis: {},
+    sharedResponses: {},
+    operations: {},
+  };
+  for (const s of specs) {
+    for (const key of Object.keys(s.operations)) {
+      if (merged.operations[key]) throw new Error(`operation ${key} appears in more than one spec file`);
+    }
+    Object.assign(merged.apis, s.apis);
+    Object.assign(merged.sharedResponses, s.sharedResponses);
+    Object.assign(merged.operations, s.operations);
+    merged._source.operationCount += s._source.operationCount;
+  }
+  return merged;
 }
 
 function main(): void {

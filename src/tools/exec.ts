@@ -63,7 +63,20 @@ export function buildPathParams(
   return out;
 }
 
-/** Validates query values against the op's declared params and coerces them to the right type. */
+/**
+ * Keeps only the query values another op of the same resource also declares, e.g. flowType from a
+ * delete carried over to the get that reads the record first.
+ */
+export function sharedQuery(op: RegistryOperation | undefined, input: QueryInput | undefined): QueryInput {
+  if (!op || !input) return {};
+  const names = new Set(op.queryParams.map((p) => p.name));
+  return Object.fromEntries(Object.entries(input).filter(([k]) => names.has(k)));
+}
+
+/**
+ * Validates query values against the op's declared params and coerces them to the right type.
+ * The op's sendDefaults fill in values the caller did not give.
+ */
 export function buildQuery(entry: RegistryEntry, op: RegistryOperation, input: QueryInput): Record<string, QueryValue> {
   const declared = new Map(op.queryParams.map((p) => [p.name, p]));
   const out: Record<string, QueryValue> = {};
@@ -74,6 +87,9 @@ export function buildQuery(entry: RegistryEntry, op: RegistryOperation, input: Q
       throw new ToolError(`${entry.key} ${opLabel(op)} does not support "${name}" (supported: ${supported})`);
     }
     out[name] = coerce(entry, op, p, raw);
+  }
+  for (const [name, value] of Object.entries(op.sendDefaults ?? {})) {
+    if (out[name] === undefined) out[name] = coerce(entry, op, declared.get(name)!, value);
   }
   const missing = op.queryParams.filter((p) => p.required && out[p.name] === undefined).map((p) => p.name);
   if (missing.length) throw new ToolError(`${entry.key} ${opLabel(op)} requires ${missing.join(", ")}`);
@@ -120,8 +136,8 @@ export interface CallSpec {
   query?: Record<string, QueryValue>;
   json?: unknown;
   form?: FormData;
-  /** Extra operation-log fields for writes. */
-  log?: { changedFields?: string[]; snapshot?: string };
+  /** Extra operation-log fields. */
+  log?: { changedFields?: string[]; snapshot?: string; file?: string };
 }
 
 /** Calls the API for a registry op and writes an operation-log line for success or failure. */
@@ -232,11 +248,13 @@ interface PageMeta {
 export function shapeResult(resource: string, input: unknown, maxChars: number, hint: string): CallToolResult {
   const data = stripLinks(input);
   if (isObject(data) && Array.isArray(data.data)) {
-    const rawMeta = isObject(data.meta) ? data.meta : {};
+    // Flows send their page metadata as pageInfo, with the page as currentPage.
+    const rawMeta = isObject(data.meta) ? data.meta : isObject(data.pageInfo) ? data.pageInfo : {};
     const meta: PageMeta = {};
     for (const k of ["page", "pageSize", "totalPages", "totalRecords"] as const) {
       if (typeof rawMeta[k] === "number") meta[k] = rawMeta[k] as number;
     }
+    if (meta.page === undefined && typeof rawMeta.currentPage === "number") meta.page = rawMeta.currentPage;
     const rows = data.data as unknown[];
     const full = { resource, meta, data: rows };
     if (JSON.stringify(full).length <= maxChars) return jsonResult(full);

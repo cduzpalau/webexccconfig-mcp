@@ -14,13 +14,25 @@ export class SnapshotStore {
     this.#now = now;
   }
 
-  /** Writes the snapshot and returns its path; throws if it cannot be written. */
+  /**
+   * Writes the snapshot and returns its path; throws if it cannot be written. Never overwrites:
+   * a second snapshot of the same record in the same millisecond gets a -1, -2, ... suffix.
+   */
   save(resource: string, id: string, data: unknown): string {
     const dir = join(this.#dir, safe(resource), safe(id));
     mkdirSync(dir, { recursive: true, mode: 0o700 });
-    const file = join(dir, `${this.#now().toISOString().replace(/:/g, "-")}.json`);
-    writeFileSync(file, JSON.stringify(data, null, 2) + "\n", { mode: 0o600, flag: "wx" });
-    return file;
+    const stamp = this.#now().toISOString().replace(/:/g, "-");
+    const text = JSON.stringify(data, null, 2) + "\n";
+    for (let n = 0; n < 100; n++) {
+      const file = join(dir, `${stamp}${n ? `-${n}` : ""}.json`);
+      try {
+        writeFileSync(file, text, { mode: 0o600, flag: "wx" });
+        return file;
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+      }
+    }
+    throw new Error(`too many snapshots of ${resource}/${id} at ${stamp}`);
   }
 }
 

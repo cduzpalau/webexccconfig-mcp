@@ -94,6 +94,12 @@ describe("buildUrl", () => {
     expect(() => client.buildUrl("/organization/{orgid}/team/{id}", { id: "" })).toThrow(WxccClientError);
     expect(() => client.buildUrl("/v1/people/me")).toThrow(/must start with/);
   });
+
+  it("builds flow paths on the same gateway, keeping colon verbs", () => {
+    expect(client.buildUrl("/{orgid}/project/5e5c9ad6d61f870d6d778c1b/v2/flows/{id}:export", { id: "f1" }, { version: "latest" })).toBe(
+      `${BASE}/${ORG}/project/5e5c9ad6d61f870d6d778c1b/v2/flows/f1:export?version=latest`,
+    );
+  });
 });
 
 describe("request", () => {

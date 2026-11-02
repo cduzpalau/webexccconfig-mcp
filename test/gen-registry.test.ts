@@ -6,12 +6,16 @@ import {
   diffAgainstDisk,
   loadSpec,
   matchResource,
+  mergeSpecs,
+  normalisePath,
   parsePath,
   render,
 } from "../scripts/gen-registry.js";
 import { RESOURCES as OVERRIDES } from "../scripts/registry-overrides.js";
 import { DEFAULT_DEFER_TO_OFFICIAL, TOOLSETS } from "../src/config.js";
 import { RESOURCES, SCHEMA_LOADERS } from "../src/registry/index.js";
+import type { SpecFile, SpecOperation } from "../scripts/fetch-spec.js";
+import type { ResourceOverride } from "../scripts/registry-overrides.js";
 import { MINI_OVERRIDES, MINI_SPEC } from "./fixtures/mini-spec.js";
 
 describe("parsePath", () => {
@@ -22,6 +26,29 @@ describe("parsePath", () => {
       version: 2,
     });
     expect(parsePath("/organization/{orgid}/skill")).toEqual({ segments: ["skill"], version: 1 });
+  });
+
+  it("parses flow paths and splits colon verbs into segments", () => {
+    const P = "/{orgid}/project/5e5c9ad6d61f870d6d778c1b";
+    expect(parsePath(`${P}/v2/flows/{id}:export`)).toEqual({ segments: ["flows", "{id}", "export"], version: 2 });
+    expect(parsePath(`${P}/v2/flows:import`)).toEqual({ segments: ["flows", "import"], version: 2 });
+    expect(parsePath(`${P}/flows`)).toEqual({ segments: ["flows"], version: 1 });
+    expect(() => parsePath("/v1/{orgId}/functions")).toThrow(/unexpected path/);
+  });
+});
+
+describe("normalisePath", () => {
+  it("lowercases {orgId}, fills the fixed project id and renames the resource id", () => {
+    expect(normalisePath("/{orgId}/project/{projectId}/flows/{flowId}:unlock", "flowId")).toBe(
+      "/{orgid}/project/5e5c9ad6d61f870d6d778c1b/flows/{id}:unlock",
+    );
+    expect(normalisePath("/organization/{orgid}/team/{id}")).toBe("/organization/{orgid}/team/{id}");
+  });
+});
+
+describe("mergeSpecs", () => {
+  it("refuses an operation that appears in two spec files", () => {
+    expect(() => mergeSpecs([MINI_SPEC, MINI_SPEC])).toThrow(/more than one spec file/);
   });
 });
 
@@ -172,6 +199,70 @@ describe("cleanText", () => {
   });
 });
 
+describe("buildRegistry with an allowlisted flows resource", () => {
+  const F = "/{orgId}/project/{projectId}";
+  const flowOp = (method: string, path: string, params: unknown[] = []): [string, SpecOperation] => [
+    `${method} ${path}`,
+    {
+      group: "Flows",
+      title: path,
+      docPath: "/docs/api/v1/flows/x",
+      docVersion: 1,
+      apiTitle: "Flows",
+      operation: {
+        method: method as "GET",
+        path,
+        operationId: `op_${method}_${path}`,
+        summary: `${method} flows`,
+        parameters: [
+          { name: "orgId", in: "path", required: true, schema: { type: "string" } },
+          { name: "flowType", in: "query", schema: { type: "string", default: "FLOW" } },
+          ...params,
+        ],
+        responses: { "200": { description: "OK" } },
+      } as SpecOperation["operation"],
+    },
+  ];
+  const spec: SpecFile = {
+    _source: { url: "x", fetchedAt: "x", section: "flows", operationCount: 3 },
+    apis: { Flows: "Manage flows" },
+    sharedResponses: {},
+    operations: Object.fromEntries([
+      flowOp("GET", `${F}/flows`),
+      flowOp("DELETE", `${F}/flows/{flowId}`, [{ name: "skipRsEPCheck", in: "query", schema: { type: "boolean", default: true } }]),
+      flowOp("POST", `${F}/flows/{flowId}:lock`),
+    ]),
+  };
+  const override: ResourceOverride = {
+    key: "flow",
+    base: "flows",
+    displayName: "Flow",
+    toolset: "flow",
+    idParam: "flowId",
+    operations: [`GET ${F}/flows`, `DELETE ${F}/flows/{flowId}`],
+    queryEnums: { flowType: ["FLOW", "SUBFLOW"] },
+    sendDefaults: { delete: { skipRsEPCheck: "false" } },
+  };
+
+  it("keeps only allowlisted ops, renames the id and applies enums and send defaults", () => {
+    const { entries, report } = buildRegistry(spec, [override]);
+    expect(entries[0]!.operations.map((o) => o.kind)).toEqual(["list", "delete"]);
+    const del = entries[0]!.operations[1]!;
+    expect(del.path).toBe("/{orgid}/project/5e5c9ad6d61f870d6d778c1b/flows/{id}");
+    expect(del.pathParams).toEqual(["id"]);
+    expect(del.sendDefaults).toEqual({ skipRsEPCheck: "false" });
+    expect(del.queryParams[0]).toMatchObject({ name: "flowType", enum: ["FLOW", "SUBFLOW"] });
+    expect(report.excluded).toEqual([`POST ${F}/flows/{flowId}:lock`]);
+  });
+
+  it("fails on a stale allowlist entry or an unknown send-default param", () => {
+    expect(() => buildRegistry(spec, [{ ...override, operations: [...override.operations!, `GET ${F}/gone`] }])).toThrow(
+      /allowlisted operation not in spec/,
+    );
+    expect(() => buildRegistry(spec, [{ ...override, sendDefaults: { delete: { nope: "1" } } }])).toThrow(/unknown query param nope/);
+  });
+});
+
 describe("committed registry", () => {
   it("matches what the generator produces from the committed spec (run npm run gen:registry)", () => {
     expect(diffAgainstDisk(render(buildRegistry(loadSpec())))).toEqual([]);
@@ -189,15 +280,37 @@ describe("committed registry", () => {
         for (const op of r.operations) expect(op.pathParams).toContain(r.parent.param);
       }
       for (const op of r.operations) {
-        expect(op.path.startsWith("/organization/{orgid}")).toBe(true);
+        expect(op.path.startsWith("/organization/{orgid}/") || op.path.startsWith("/{orgid}/project/5e5c9ad6d61f870d6d778c1b/")).toBe(true);
         expect(op.kind === "view" || op.kind === "action" ? op.name : undefined).toBe(op.name);
       }
     }
   });
 
-  it("knows every default-deferred resource except flow (which has no spec)", () => {
+  it("knows every default-deferred resource except dial-plan (no live ops), and no longer defers flow", () => {
     const keys = new Set(RESOURCES.map((r) => r.key));
-    expect(DEFAULT_DEFER_TO_OFFICIAL.filter((k) => !keys.has(k))).toEqual(["flow", "dial-plan"]);
+    expect(DEFAULT_DEFER_TO_OFFICIAL.filter((k) => !keys.has(k))).toEqual(["dial-plan"]);
+    expect(DEFAULT_DEFER_TO_OFFICIAL).not.toContain("flow");
+  });
+
+  it("exposes only the flow operations the official server lacks", () => {
+    const flow = RESOURCES.find((r) => r.key === "flow")!;
+    expect(flow.toolset).toBe("flow");
+    expect(flow.aliases).toEqual([]);
+    expect(flow.operations.map((o) => (o.name ? `${o.kind}:${o.name}` : o.kind))).toEqual([
+      "list",
+      "get",
+      "delete",
+      "view:export",
+      "action:import",
+      "action:unlock",
+    ]);
+    const methods = Object.fromEntries(flow.operations.map((o) => [o.name ?? o.kind, `${o.method} ${o.path}`]));
+    expect(methods.export).toBe("GET /{orgid}/project/5e5c9ad6d61f870d6d778c1b/v2/flows/{id}:export");
+    expect(methods.import).toBe("POST /{orgid}/project/5e5c9ad6d61f870d6d778c1b/v2/flows:import");
+    expect(methods.delete).toBe("DELETE /{orgid}/project/5e5c9ad6d61f870d6d778c1b/flows/{id}");
+    for (const op of flow.operations) expect(op.queryParams.find((q) => q.name === "flowType")?.enum).toEqual(["FLOW", "SUBFLOW"]);
+    expect(flow.operations.find((o) => o.kind === "delete")?.sendDefaults).toEqual({ skipRsEPCheck: "false" });
+    expect(flow.operations.find((o) => o.kind === "list")?.paginated).toBe(true);
   });
 
   it("has no deprecated or excluded operations", () => {
@@ -214,7 +327,7 @@ describe("committed registry", () => {
   it("covers every override except the deprecated-only ones", () => {
     const keys = new Set(RESOURCES.map((r) => r.key));
     expect(OVERRIDES.filter((o) => !keys.has(o.key)).map((o) => o.key)).toEqual([]);
-    expect(RESOURCES).toHaveLength(33);
+    expect(RESOURCES).toHaveLength(34);
   });
 
   it("loads a schema doc lazily", async () => {

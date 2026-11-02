@@ -7,8 +7,11 @@ Design details: see docs/architecture.md. Current work plan: see docs/refactor-p
 ## Hard rules
 - Stdio transport only. Never add Express, HTTP, SSE, or Docker code.
 - Never add per-resource tools. New resources go in the registry, not in server.tool() calls.
-- Never expose a resource listed under `defer_to_official` in config (default list: flows, entry
-  points, business hours, dial plans, dial numbers).
+- Never expose a resource listed under `defer_to_official` in config (default list: entry points,
+  business hours, dial plans, dial numbers).
+- Flows: expose only the operations Cisco's official server lacks (list, get, export, import, unlock,
+  delete), via the `operations` allowlist in scripts/registry-overrides.ts. Never add flow drafts,
+  save, patch, validate, publish or lock.
 - Never expose deprecated API operations.
 - All tool names are prefixed `wxcc-ext-`.
 - .env holds a SANDBOX token only. You may read and edit it for development and live testing.
@@ -21,17 +24,18 @@ Design details: see docs/architecture.md. Current work plan: see docs/refactor-p
 ## Layout
 - src/index.ts           entry point: load config, validate token, start stdio server
 - src/config.ts          YAML config + env loading (region + editable regions list, base_url override,
-                         org id, mode, toolsets, defer list, log/snapshot dirs, audio tools)
+                         org id, mode, toolsets, defer list, log/snapshot/export dirs, audio tools)
 - src/auth.ts            token provider interface (personal token now, OAuth later)
 - src/client.ts          the only place that calls the Webex CC REST API
 - src/registry/          GENERATED resource registry. Do not hand-edit; run `npm run gen:registry`
 - src/registry-types.ts  hand-written types for the generated registry
 - src/tools/             the generic tools (list_resource_types, describe_resource, list, get,
                          create, update, delete, bulk, action)
-- src/write/             snapshot, merge, diff, operation log, audio conversion
+- src/write/             snapshot, merge, diff, operation log, audio conversion, local JSON files
+                         (saveTo / bodyFile; never overwrite)
 - scripts/fetch-spec.ts  snapshots the OpenAPI embedded in developer.webex.com into
-                         apireference/openapi/configuration.json (manual, needs network)
-- scripts/gen-registry.ts  builds src/registry from apireference/openapi/configuration.json (offline)
+                         apireference/openapi/configuration.json and flows.json (manual, needs network)
+- scripts/gen-registry.ts  builds src/registry from apireference/openapi/*.json (offline)
 - scripts/registry-overrides.ts  hand-maintained generator input (keys, aliases, toolsets, quirks)
 - apireference/          source API docs; openapi/ is the generator input, *.md is legacy reference
 - test/                  vitest tests with fetch mocked; fixtures in test/fixtures
@@ -42,7 +46,7 @@ Design details: see docs/architecture.md. Current work plan: see docs/refactor-p
 - npm test               unit tests (no network)
 - npm run test:live      opt-in smoke tests against a SANDBOX tenant only:
                          WXCC_LIVE=1 WXCC_SANDBOX_ORG_IDS=<org id> npm run test:live
-- npm run fetch:spec     refresh apireference/openapi/ from developer.webex.com
+- npm run fetch:spec     refresh apireference/openapi/ from developer.webex.com (-- --only flows)
 - npm run gen:registry   regenerate the registry from apireference/openapi/
 
 ## Conventions
