@@ -9,21 +9,13 @@
 > It can change your Webex Contact Center configuration, and it comes with no warranty and no support of any kind.
 > Test it against a sandbox first, and review every dry-run before you confirm a write.
 >
-> **The supported option is Cisco's official Webex Contact Center MCP Server:**
-> https://developer.webex.com/mcp/docs/contact-center-mcp-server
-> Use it whenever it covers what you need.
+> Cisco's supported alternative is the official
+> [Webex Contact Center MCP Server](https://developer.webex.com/mcp/docs/contact-center-mcp-server).
 
-**How this server differs from Cisco's.**
-- **Cisco's official server** is hosted. You connect over HTTP with Webex OAuth, and an administrator enables it
-  for the organization in Control Hub. It focuses on flows, Day 0 administration and real-time and analytics use
-  cases.
-- **webexccconfig-mcp** is a local **stdio** server. It runs on your machine with a **personal access token** and
-  is built for **configuring a contact center programmatically**: queues, teams, skills, skill profiles, users,
-  user and desktop profiles, sites, global variables, audio prompts and more. For flows it adds only what the
-  official server lacks: list, export, import, unlock and delete. It also creates, updates and deletes the
-  **Webex people** behind agents, with their licenses (Webex People API).
-
-The two can run side by side. This server fills the configuration gaps and defers what the official server owns.
+A local **stdio** MCP server for **configuring a Webex Contact Center programmatically**: queues, teams, skills,
+skill profiles, users, user and desktop profiles, sites, global variables, audio prompts and more, plus flow list,
+export, import, unlock and delete, and the **Webex people** behind agents, with their licenses. It can run next
+to Cisco's server: `defer_to_official` in config hides the resources you want that server to own.
 
 This server exposes nine generic tools, not one tool per API call, over a registry generated from Cisco's
 published OpenAPI specs: 37 resource types and 269 operations. Writes are dry-run by default, need explicit confirmation,
@@ -37,7 +29,8 @@ are checked for stale versions, snapshot the previous state and are logged.
 - [Requirements](#requirements)
 - [Install](#install)
 - [Configure](#configure)
-- [Connect a client (side by side with Cisco's server)](#connect-a-client-side-by-side-with-ciscos-server)
+- [The Webex token](#the-webex-token)
+- [Connect a client](#connect-a-client)
 - [Tools](#tools)
 - [How writes work](#how-writes-work)
 - [Flows: list, export, import, unlock, delete](#flows-list-export-import-unlock-delete)
@@ -89,16 +82,9 @@ Settings come from a YAML file plus environment variables.
 
    MCP clients start servers from varying working directories, so pass `--config` with an absolute path.
 
-2. Provide the token as an environment variable. It is never read from the config file:
-   ```bash
-   export WEBEX_TOKEN=<access token>
-   ```
-   Personal access tokens from developer.webex.com are short-lived. When one expires, tools answer
-   `token expired: refresh WEBEX_TOKEN`.
+2. Give the server a token: see [The Webex token](#the-webex-token).
 
 Without a config file, `WXCC_REGION`, `WEBEX_ORG_ID` and `WEBEX_BASE_URL` work as fallbacks (see `.env.example`).
-For development, a `.env` file in the working directory is loaded automatically. Variables already set in the
-environment take precedence over it.
 
 **Base URL.** It is derived as `https://api.wxcc-<region>.cisco.com`. `base_url` overrides it, and must be the
 bare host: a `/v1` suffix is rejected, because API paths carry their own version.
@@ -117,86 +103,167 @@ If you leave `defer_to_official` out, the default list applies: `entry-point`, `
 See `wxcc-ext.example.yaml` for every option: log, snapshot and export folders, request timeout, bulk delete
 concurrency, response size cap and audio settings.
 
-## Connect a client (side by side with Cisco's server)
-Both servers can be enabled at once. This server's tools are all prefixed `wxcc-ext-`, so names never clash.
-Its tool descriptions don't mention what the official server covers. Routing between the two is decided by
-your client setup and by `defer_to_official`.
+## The Webex token
+The server reads the token from one place only: the `WEBEX_TOKEN` environment variable of its own process. It
+never reads it from `wxcc-ext.yaml`, and never logs or writes it. There are three ways to set that variable;
+use the first unless you have a reason not to.
+
+| Where | How | Use it when |
+|---|---|---|
+| **Your MCP client's config** (recommended) | An `env` entry for the server: `"env": { "WEBEX_TOKEN": "…" }`. Most clients can reference a variable from your shell instead of holding the value (examples below). | Always works, in every client. |
+| **Your shell** | `export WEBEX_TOKEN=<token>` before starting the client. | Terminal clients (Claude Code, Codex, Gemini CLI, OpenCode) started from that shell. Apps started from the Dock or Start menu don't see it, and some clients only pass on variables named in their config. |
+| **A `.env` file** | `WEBEX_TOKEN=<token>` in `.env`. Read from the server's **working directory** only; variables already set win. | Development: `npm run dev`, `npm run test:live`, the MCP Inspector. Clients start servers from varying folders, so don't rely on it there. |
+
+Personal access tokens from developer.webex.com expire after 12 hours. When one does, tools answer
+`token expired: refresh WEBEX_TOKEN`: update the token where you set it and restart the server (or reload it in
+your client).
+
+## Connect a client
+Every client below starts the same command: `node <path>/dist/index.js --config <path>/wxcc-ext.yaml`. Use absolute
+paths, because clients start servers from varying folders. All tool names start with `wxcc-ext-`, so they never
+clash with other servers.
 
 ### Claude Code
-This server, as a project-scoped `.mcp.json`. Claude Code expands `${VAR}` from your shell, so the token stays
-out of the file:
+`.mcp.json` in your project (or `claude mcp add`). `${WEBEX_TOKEN}` is taken from the shell that starts Claude Code:
 ```json
 {
   "mcpServers": {
     "wxcc-ext": {
       "command": "node",
-      "args": ["/absolute/path/to/webexccconfig-mcp/dist/index.js", "--config", "/absolute/path/to/wxcc-ext.yaml"],
+      "args": ["/absolute/path/to/webexccconfig-mcp/dist/index.js", "--config", "/absolute/path/to/webexccconfig-mcp/wxcc-ext.yaml"],
       "env": { "WEBEX_TOKEN": "${WEBEX_TOKEN}" }
     }
   }
 }
 ```
-Or from the CLI:
 ```bash
-claude mcp add wxcc-ext -e WEBEX_TOKEN="$WEBEX_TOKEN" -- node /absolute/path/to/webexccconfig-mcp/dist/index.js --config /absolute/path/to/wxcc-ext.yaml
+claude mcp add wxcc-ext -e WEBEX_TOKEN="$WEBEX_TOKEN" -- node /absolute/path/to/webexccconfig-mcp/dist/index.js --config /absolute/path/to/webexccconfig-mcp/wxcc-ext.yaml
 ```
-`claude mcp add -e` stores the value you pass in Claude Code's configuration. Prefer the `.mcp.json` form if you
-don't want the token saved there.
+`claude mcp add -e` saves the token's value in Claude Code's settings; the `.mcp.json` form keeps only the reference.
 
-Cisco's server uses OAuth. Cisco documents this command for it
-([Claude Code guide](https://developer.webex.com/mcp/docs/webex-agentic-mcp-servers-claude-code)):
-```bash
-MCP_CLIENT_SECRET=<client secret> claude mcp add --transport http \
-  --client-id <client id> --client-secret --callback-port <port> \
-  wxcc-official <Contact Center MCP server URL>
-```
-Then run `/mcp` in Claude Code, select the server and choose **Authenticate**. `claude mcp list` should show both
-servers.
-
-### Claude Desktop and other stdio clients
-Add this server to the client's MCP config (for Claude Desktop, `claude_desktop_config.json`):
+### Claude Desktop
+`claude_desktop_config.json` (Settings → Developer → Edit Config). The app does not read your shell, so the value
+goes in the file:
 ```json
 {
   "mcpServers": {
     "wxcc-ext": {
       "command": "node",
-      "args": ["/absolute/path/to/webexccconfig-mcp/dist/index.js", "--config", "/absolute/path/to/wxcc-ext.yaml"],
+      "args": ["/absolute/path/to/webexccconfig-mcp/dist/index.js", "--config", "/absolute/path/to/webexccconfig-mcp/wxcc-ext.yaml"],
       "env": { "WEBEX_TOKEN": "<access token>" }
     }
   }
 }
 ```
-Add Cisco's server with the guide for your client. Cisco lists guides for Amazon Quick, Claude Code, Claude
-Desktop, Codex, Copilot Studio, Cursor, Gemini CLI and VS Code on its
-[Contact Center MCP Server page](https://developer.webex.com/mcp/docs/contact-center-mcp-server).
 
-### Cisco's official server (supported)
-From Cisco's [Contact Center MCP Server documentation](https://developer.webex.com/mcp/docs/contact-center-mcp-server):
+### Cursor
+`.cursor/mcp.json` in your project, or `~/.cursor/mcp.json` for all projects. `${env:WEBEX_TOKEN}` reads the
+variable from Cursor's environment; `"envFile": "/absolute/path/to/webexccconfig-mcp/.env"` is an alternative:
+```json
+{
+  "mcpServers": {
+    "wxcc-ext": {
+      "command": "node",
+      "args": ["/absolute/path/to/webexccconfig-mcp/dist/index.js", "--config", "/absolute/path/to/webexccconfig-mcp/wxcc-ext.yaml"],
+      "env": { "WEBEX_TOKEN": "${env:WEBEX_TOKEN}" }
+    }
+  }
+}
+```
 
-**Enablement.** An administrator enables the server for the organization through the Webex Agentic Platform,
-or the Agentic Apps settings in Control Hub, and can choose which of its tools are enabled.
+### VS Code (GitHub Copilot agent mode)
+`.vscode/mcp.json` in your workspace, or **MCP: Open User Configuration** for all workspaces. The top-level key is
+`servers`. An `inputs` prompt asks for the token once and VS Code stores it securely:
+```json
+{
+  "inputs": [
+    { "type": "promptString", "id": "webex-token", "description": "Webex access token", "password": true }
+  ],
+  "servers": {
+    "wxcc-ext": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/absolute/path/to/webexccconfig-mcp/dist/index.js", "--config", "/absolute/path/to/webexccconfig-mcp/wxcc-ext.yaml"],
+      "env": { "WEBEX_TOKEN": "${input:webex-token}" }
+    }
+  }
+}
+```
+Tokens expire, so an env file can be easier to refresh: replace the `env` entry with
+`"envFile": "/absolute/path/to/webexccconfig-mcp/.env"`, then edit the file and restart the server from
+**MCP: List Servers**.
 
-**Authentication.** A Webex OAuth 2.0 bearer token (issuer `https://webexapis.com`), with these scopes:
-`spark:mcp cjp:config_read cjp:config_write cjp:user spark:people_read`.
+### Codex (CLI and IDE extension)
+`~/.codex/config.toml` (or `.codex/config.toml` in a trusted project). The key is `mcp_servers`, in snake case.
+`env_vars` passes `WEBEX_TOKEN` through from the shell that starts Codex, so the value stays out of the file:
+```toml
+[mcp_servers.wxcc-ext]
+command = "node"
+args = ["/absolute/path/to/webexccconfig-mcp/dist/index.js", "--config", "/absolute/path/to/webexccconfig-mcp/wxcc-ext.yaml"]
+env_vars = ["WEBEX_TOKEN"]
+```
+Or `codex mcp add wxcc-ext --env WEBEX_TOKEN="$WEBEX_TOKEN" -- node /absolute/path/to/webexccconfig-mcp/dist/index.js --config /absolute/path/to/webexccconfig-mcp/wxcc-ext.yaml`,
+which saves the value.
 
-**Coverage.**
-- **Flows:** list, create, read, save and patch drafts, validate (FlowV2), plus templates and activity discovery.
-- **Admin config:** create, update and delete entry points, business hours, dial plans and dial numbers.
-  Read-only views of queues, teams, users, skill profiles, auxiliary codes, agent profiles and outdial ANIs.
-- **Also:** real-time telemetry subscriptions, AI customer journey context and historical analytics queries.
+### Google Antigravity
+`~/.gemini/config/mcp_config.json` (or `.agents/mcp_config.json` in a workspace); in the IDE, open the raw file
+from the MCP Servers panel of the agent pane. The app does not read your shell, so the value goes in the file:
+```json
+{
+  "mcpServers": {
+    "wxcc-ext": {
+      "command": "node",
+      "args": ["/absolute/path/to/webexccconfig-mcp/dist/index.js", "--config", "/absolute/path/to/webexccconfig-mcp/wxcc-ext.yaml"],
+      "env": { "WEBEX_TOKEN": "<access token>" }
+    }
+  }
+}
+```
 
-Check Cisco's page for the current tool list and for your server URL.
+### Gemini CLI
+`~/.gemini/settings.json` (or `.gemini/settings.json` in a project). `$WEBEX_TOKEN` is expanded from the shell:
+```json
+{
+  "mcpServers": {
+    "wxcc-ext": {
+      "command": "node",
+      "args": ["/absolute/path/to/webexccconfig-mcp/dist/index.js", "--config", "/absolute/path/to/webexccconfig-mcp/wxcc-ext.yaml"],
+      "env": { "WEBEX_TOKEN": "$WEBEX_TOKEN" }
+    }
+  }
+}
+```
 
-**How the two fit together.** This server's default `defer_to_official` list (entry points, business hours,
-dial plans, dial numbers) is the admin configuration the official server writes. Leave it as is to let the
-official server own those resources and use this one for the rest of the configuration.
+### OpenCode
+`opencode.json` in your project (or `~/.config/opencode/opencode.json`). The key is `mcp`, `command` is one
+array, and variables go under `environment`; `{env:WEBEX_TOKEN}` reads it from the shell:
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "wxcc-ext": {
+      "type": "local",
+      "command": ["node", "/absolute/path/to/webexccconfig-mcp/dist/index.js", "--config", "/absolute/path/to/webexccconfig-mcp/wxcc-ext.yaml"],
+      "environment": { "WEBEX_TOKEN": "{env:WEBEX_TOKEN}" },
+      "enabled": true
+    }
+  }
+}
+```
 
-Flows are split by operation rather than deferred. The official server builds flows: drafts, save, patch,
-validate and publish. This server only adds the flow operations it lacks: list, export, import, unlock and
-delete. To leave flows entirely to the official server, add `flow` to `defer_to_official`.
+### Windsurf and other stdio clients
+Most other clients (Windsurf: `~/.codeium/windsurf/mcp_config.json`; Cline, Roo Code, Zed, LM Studio, …) take the
+same `mcpServers` block as Claude Desktop: `command` `node`, the two `args`, and `WEBEX_TOKEN` under `env`. Check
+the client's docs for the file location and whether it can reference shell variables.
+
+### Microsoft Copilot Studio (not supported)
+Copilot Studio only connects to remote MCP servers over Streamable HTTP, reached from Microsoft's cloud. This
+server is stdio only, by design (no HTTP endpoint), so Copilot Studio cannot use it. Cisco's official server is
+remote and works there.
 
 ### Check the setup
-- `claude mcp list` (or your client's server list) shows both servers.
+- Your client's server list (`/mcp` in Claude Code, `codex mcp list`, the MCP panel in VS Code or Cursor) shows
+  `wxcc-ext` as connected.
 - Asking for "the list of WxCC config resource types" calls `wxcc-ext-list-resource-types`.
 - Asking this server for a deferred resource (e.g. entry points) returns
   `entry-point is deferred by config (defer_to_official): not available in this server`.
