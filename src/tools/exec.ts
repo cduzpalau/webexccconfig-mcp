@@ -4,7 +4,7 @@
  */
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import type { CallToolResult, ServerNotification, ServerRequest } from "@modelcontextprotocol/sdk/types.js";
-import { WxccApiError, WxccClientError, type ApiResponse, type QueryValue, type WxccClient } from "../client.js";
+import { isWebexPath, WxccApiError, WxccClientError, type ApiResponse, type QueryValue, type WxccClient } from "../client.js";
 import type { AppConfig } from "../config.js";
 import type { QueryParam, RegistryEntry, RegistryOperation } from "../registry-types.js";
 import type { PendingPlans } from "../write/confirm.js";
@@ -23,6 +23,8 @@ export interface ToolContext {
   files: FileProcessor;
   /** Waits before re-checking a record after a timed-out delete; replaceable in tests. */
   sleep: (ms: number) => Promise<void>;
+  /** Set once the token's Webex org is known to be org_id (see checkWebexOrg). */
+  webexOrg?: Promise<{ personId: string }>;
 }
 
 /** Per-call MCP context: progress token, cancellation signal, notifications. */
@@ -147,9 +149,63 @@ export interface CallSpec {
   log?: { changedFields?: string[]; snapshot?: string; file?: string };
 }
 
+/**
+ * Webex API calls act on the token's own org, not on a path org id. Before the first one, the
+ * token's org (from /v1/people/me) must be org_id, so people are never listed or changed in
+ * another org (e.g. a partner admin's own). Also returns the token owner's person id.
+ */
+export function checkWebexOrg(ctx: ToolContext): Promise<{ personId: string }> {
+  ctx.webexOrg ??= (async () => {
+    const path = "/v1/people/me";
+    const started = Date.now();
+    const base = { tool: "org-check", phase: "read", op: "view:me", method: "GET", path } as const;
+    let data: unknown;
+    try {
+      const res = await ctx.client.request({ method: "GET", path });
+      ctx.oplog.record({ ...base, status: "ok", httpStatus: res.status, trackingId: res.trackingId, durationMs: Date.now() - started });
+      data = res.data;
+    } catch (err) {
+      ctx.oplog.record({
+        ...base,
+        status: "error",
+        httpStatus: err instanceof WxccApiError ? err.status : undefined,
+        durationMs: Date.now() - started,
+        error: (err as Error).message,
+      });
+      throw new ToolError(`cannot check the token's Webex org: ${(err as Error).message}`);
+    }
+    const me = isObject(data) ? data : {};
+    const org = typeof me.orgId === "string" ? hydraUuid(me.orgId) : undefined;
+    if (!org || typeof me.id !== "string") throw new ToolError("cannot check the token's Webex org: unexpected /v1/people/me response");
+    if (org.toLowerCase() !== ctx.config.orgId.toLowerCase()) {
+      throw new ToolError(
+        `the token belongs to Webex org ${org}, not org_id ${ctx.config.orgId}: Webex API calls (people, licenses, roles) are refused`,
+      );
+    }
+    return { personId: me.id };
+  })();
+  // A failed check is not remembered: the next call tries again (e.g. after a network error).
+  ctx.webexOrg.catch(() => (ctx.webexOrg = undefined));
+  return ctx.webexOrg;
+}
+
+/** The uuid inside a Webex id: base64 of "ciscospark://us/ORGANIZATION/<uuid>". */
+export function hydraUuid(id: string): string | undefined {
+  if (/^[0-9a-f-]{36}$/i.test(id)) return id;
+  let decoded: string;
+  try {
+    decoded = Buffer.from(id, "base64").toString("utf8");
+  } catch {
+    return undefined;
+  }
+  const m = /^ciscospark:\/\/[^/]+\/[A-Z_]+\/([0-9a-f-]{36})/i.exec(decoded);
+  return m?.[1];
+}
+
 /** Calls the API for a registry op and writes an operation-log line for success or failure. */
 export async function callApi(ctx: ToolContext, spec: CallSpec): Promise<ApiResponse> {
   const { op } = spec;
+  if (isWebexPath(op.path)) await checkWebexOrg(ctx);
   let path: string | undefined;
   try {
     path = new URL(ctx.client.buildUrl(op.path, spec.pathParams, spec.query)).pathname;
@@ -253,8 +309,23 @@ interface PageMeta {
  * Shapes an API response for the model: list envelopes become { meta, data } without links, and
  * anything over the size cap is trimmed with a hint instead of overflowing the context.
  */
-export function shapeResult(resource: string, input: unknown, maxChars: number, hint: string): CallToolResult {
+export function shapeResult(
+  resource: string,
+  input: unknown,
+  maxChars: number,
+  hint: string,
+  nextCursor?: string,
+): CallToolResult {
   const data = stripLinks(input);
+  // Webex lists: { items, notFoundIds }, next page by cursor.
+  if (isObject(data) && Array.isArray(data.items) && !Array.isArray(data.data)) {
+    const rows = data.items as unknown[];
+    const notFound = Array.isArray(data.notFoundIds) && data.notFoundIds.length ? { notFoundIds: data.notFoundIds } : {};
+    const meta = nextCursor
+      ? { count: rows.length, nextCursor, next: "same call with query.cursor set to nextCursor" }
+      : { count: rows.length };
+    return fitRows({ resource, meta, data: rows, ...notFound }, rows, maxChars, hint);
+  }
   if (isObject(data) && Array.isArray(data.data)) {
     // Flows send their page metadata as pageInfo, with the page as currentPage.
     const rawMeta = isObject(data.meta) ? data.meta : isObject(data.pageInfo) ? data.pageInfo : {};
@@ -264,20 +335,7 @@ export function shapeResult(resource: string, input: unknown, maxChars: number, 
     }
     if (meta.page === undefined && typeof rawMeta.currentPage === "number") meta.page = rawMeta.currentPage;
     const rows = data.data as unknown[];
-    const full = { resource, meta, data: rows };
-    if (JSON.stringify(full).length <= maxChars) return jsonResult(full);
-    let lo = 0;
-    let hi = rows.length;
-    while (lo < hi) {
-      const mid = Math.ceil((lo + hi) / 2);
-      if (JSON.stringify({ ...full, data: rows.slice(0, mid) }).length <= maxChars - 300) lo = mid;
-      else hi = mid - 1;
-    }
-    return jsonResult({
-      ...full,
-      data: rows.slice(0, lo),
-      truncated: { shown: lo, onPage: rows.length, hint },
-    });
+    return fitRows({ resource, meta, data: rows }, rows, maxChars, hint);
   }
   const text = JSON.stringify(data ?? null);
   if (text.length <= maxChars) return jsonResult(data ?? null);
@@ -289,10 +347,28 @@ export function shapeResult(resource: string, input: unknown, maxChars: number, 
   };
 }
 
+/** Returns the list as is, or as many rows as fit with a note on how to fetch less. */
+function fitRows(full: Record<string, unknown>, rows: unknown[], maxChars: number, hint: string): CallToolResult {
+  if (JSON.stringify(full).length <= maxChars) return jsonResult(full);
+  let lo = 0;
+  let hi = rows.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (JSON.stringify({ ...full, data: rows.slice(0, mid) }).length <= maxChars - 300) lo = mid;
+    else hi = mid - 1;
+  }
+  return jsonResult({
+    ...full,
+    data: rows.slice(0, lo),
+    truncated: { shown: lo, onPage: rows.length, hint },
+  });
+}
+
 /** ` "Name"` for messages, or "" when the record has no name. */
 export function label(record: unknown): string {
   if (!isObject(record)) return "";
-  return typeof record.name === "string" ? ` "${record.name}"` : "";
+  const name = typeof record.name === "string" ? record.name : typeof record.displayName === "string" ? record.displayName : undefined;
+  return name !== undefined ? ` "${name}"` : "";
 }
 
 /**
@@ -314,7 +390,14 @@ export async function readCurrent(
   const res = await callApi(ctx, { tool, phase: "read", entry, op: getOp, id, pathParams, query: getQuery });
   const data = stripLinks(res.data);
   if (!isObject(data)) throw new ToolError(`${entry.key} ${id}: unexpected response when reading the current record`);
-  return data;
+  return withoutVolatile(entry, data);
+}
+
+/** Drops fields that change on their own (presence), so they never pin or stale a write. */
+export function withoutVolatile(entry: RegistryEntry, record: Record<string, unknown>): Record<string, unknown> {
+  if (!entry.volatileFields?.length) return record;
+  const drop = new Set(entry.volatileFields);
+  return Object.fromEntries(Object.entries(record).filter(([k]) => !drop.has(k)));
 }
 
 /** Drops HAL navigation (`_links`, and `links` arrays of rel/href) from records: noise for the model. */

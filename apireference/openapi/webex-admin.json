@@ -1,0 +1,3128 @@
+{
+ "_source": {
+  "url": "https://developer.webex.com/admin/docs/api/v1/people",
+  "fetchedAt": "2026-11-03",
+  "section": "Webex Admin: All APIs → All APIs: People, All APIs: Licenses, All APIs: Roles",
+  "operationCount": 11
+ },
+ "apis": {
+  "Licenses": "An allowance for features and services that are provided to users on a Webex services subscription. Cisco and its partners manage the amount of licenses provided to administrators and users. License can be assigned only by admins.\n\nViewing the list of all licenses in your organization and viewing license details requires an administrator auth token with a [scope](/docs/integrations#scopes) of `spark-admin:licenses_read`.\n\nUpdating the licenses of users requires an administrator auth token with a [scope](/docs/integrations#scopes) of `spark-admin:people_write`.\n\nThe license assignment API now supports partial success scenarios. When assigning multiple licenses to a user, if some licenses can be assigned successfully while others fail due to constraints or conflicts, the API returns a 206 Partial Content status code instead of failing the entire request. This allows for more robust bulk license operations, providing detailed information about which licenses were assigned successfully and which failed, along with specific error details for each failure. Previously, if any single license in a batch could not be assigned, the entire request would fail.\n\nTo learn about how to allocate Hybrid Services licenses, see the [Managing Hybrid Services](/docs/api/guides/managing-hybrid-services-licenses) guide.",
+  "People": "<div><Callout type=\"error\">As of January 2024, the Webex APIs have been fully upgraded to support the industry-standard [SCIM 2.0](/docs/api/v1/scim-2-users) protocol, which is used for user and group management, provisioning, and maintenance. Developers are advised to use this API instead of the people API, due to its higher performance and readily available connectors. Users created via SCIM should be licensed using the /licenses API, even in large quantities, using the new [PATCH method](/docs/api/v1/licenses/assign-licenses-to-users).</div>\n\nPeople are registered users of Webex. Searching and viewing People requires an auth token with a [scope](/docs/integrations#scopes) of `spark:people_read`.\nViewing the list of all People in your organization requires an administrator auth token with `spark-admin:people_read` scope. Adding, updating, and removing People requires an administrator auth token with the `spark-admin:people_write` and `spark-admin:people_read` scope.\n\nA person's call settings are for `Webex Calling` and necessitate Webex Calling licenses.\n\nTo learn more about managing people in a room see the [Memberships API](/docs/api/v1/memberships). For information about how to allocate Hybrid Services licenses to people, see the [Managing Hybrid Services](/docs/api/guides/managing-hybrid-services-licenses) guide.",
+  "Roles": "A persona for an authenticated user, corresponding to a set of privileges within an organization."
+ },
+ "sharedResponses": {
+  "10c5fa251a25": {
+   "description": "Gone: The requested resource is no longer available."
+  },
+  "146c1964b246": {
+   "description": "Bad Request: The request was invalid or cannot be otherwise served. An accompanying error message will explain further."
+  },
+  "1ff877bfa646": {
+   "description": "Not Found: The URI requested is invalid or the resource requested, such as a user, does not exist. Also returned when the requested format is not supported by the requested method."
+  },
+  "2a1f530534f5": {
+   "description": "No Content",
+   "headers": {},
+   "content": {}
+  },
+  "39251df769bb": {
+   "description": "Locked: The requested resource is temporarily unavailable. A Retry-After header may be present that specifies how many seconds you need to wait before attempting the request again."
+  },
+  "5526ea327583": {
+   "description": "OK",
+   "headers": {},
+   "content": {
+    "application/json": {
+     "schema": {
+      "type": "object",
+      "properties": {
+       "id": {
+        "type": "string",
+        "example": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS9mNWIzNjE4Ny1jOGRkLTQ3MjctOGIyZi1mOWM0NDdmMjkwNDY",
+        "description": "A unique identifier for the person."
+       },
+       "emails": {
+        "type": "array",
+        "items": {
+         "type": "string",
+         "example": "john.andersen@example.com"
+        },
+        "description": "The email addresses of the person."
+       },
+       "phoneNumbers": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "properties": {
+          "type": {
+           "type": "string",
+           "enum": [
+            "work",
+            "work_extension",
+            "mobile",
+            "fax"
+           ],
+           "description": "The type of phone number.\n * `work` - Work phone number of the person.\n * `work_extension` - Work extension of the person. For the Webex Calling person, the value will have a routing prefix along with the extension.\n * `mobile` - Mobile number of the person.\n * `fax` - FAX number of the person.\n"
+          },
+          "value": {
+           "type": "string",
+           "example": "+1 408 526 7209",
+           "description": "The phone number."
+          },
+          "primary": {
+           "type": "boolean",
+           "example": true,
+           "description": "Primary number for the person."
+          }
+         }
+        },
+        "description": "Phone numbers for the person."
+       },
+       "extension": {
+        "type": "string",
+        "example": "133",
+        "description": "The Webex Calling extension for the person. Only applies to a person with a Webex Calling license."
+       },
+       "locationId": {
+        "type": "string",
+        "example": "Y2lzY29zcGFyazovL3VzL0xPQ0FUSU9OLzYzNzE1",
+        "description": "The ID of the location for this person retrieved from BroadCloud."
+       },
+       "displayName": {
+        "type": "string",
+        "example": "John Andersen",
+        "description": "The full name of the person."
+       },
+       "nickName": {
+        "type": "string",
+        "example": "John",
+        "description": "The nickname of the person if configured. If no nickname is configured for the person, this field will not be present."
+       },
+       "firstName": {
+        "type": "string",
+        "example": "John",
+        "description": "The first name of the person."
+       },
+       "lastName": {
+        "type": "string",
+        "example": "Andersen",
+        "description": "The last name of the person."
+       },
+       "avatar": {
+        "type": "string",
+        "example": "https://1efa7a94ed21783e352-c62266528714497a17239ececf39e9e2.ssl.cf1.rackcdn.com/V1~54c844c89e678e5a7b16a306bc2897b9~wx29yGtlTpilEFlYzqPKag==~1600",
+        "description": "The URL to the person's avatar in PNG format."
+       },
+       "orgId": {
+        "type": "string",
+        "example": "Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi85NmFiYzJhYS0zZGNjLTExZTUtYTE1Mi1mZTM0ODE5Y2RjOWE",
+        "description": "The ID of the organization to which this person belongs."
+       },
+       "roles": {
+        "type": "array",
+        "items": {
+         "type": "string",
+         "example": "Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi"
+        },
+        "description": "An array of role strings representing the roles to which this admin user belongs."
+       },
+       "licenses": {
+        "type": "array",
+        "items": {
+         "type": "string",
+         "example": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi"
+        },
+        "description": "An array of license strings allocated to this person."
+       },
+       "department": {
+        "type": "string",
+        "example": "Sales",
+        "description": "The business department the user belongs to."
+       },
+       "manager": {
+        "type": "string",
+        "example": "John Duarte",
+        "description": "A manager identifier."
+       },
+       "managerId": {
+        "type": "string",
+        "example": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS80ZGEzYTI0OC05YjBhLTQxMDgtODU0NC1iNTQwMzEyZTU2M2E",
+        "description": "Person ID of the manager."
+       },
+       "title": {
+        "type": "string",
+        "example": "GM",
+        "description": "The person's title."
+       },
+       "addresses": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "properties": {
+          "type": {
+           "type": "string",
+           "example": "work",
+           "description": "The type of address."
+          },
+          "country": {
+           "type": "string",
+           "example": "US",
+           "description": "The user's country."
+          },
+          "locality": {
+           "type": "string",
+           "example": "Milpitas",
+           "description": "The user's locality, often city."
+          },
+          "region": {
+           "type": "string",
+           "example": "California",
+           "description": "The user's region, often state."
+          },
+          "streetAddress": {
+           "type": "string",
+           "example": "1099 Bird Ave.",
+           "description": "The user's street."
+          },
+          "postalCode": {
+           "type": "string",
+           "example": "99212",
+           "description": "The user's postal or zip code."
+          }
+         }
+        },
+        "description": "A person's addresses."
+       },
+       "created": {
+        "type": "string",
+        "example": "2015-10-18T14:26:16.000Z",
+        "description": "The date and time the person was created."
+       },
+       "lastModified": {
+        "type": "string",
+        "example": "2015-10-18T14:26:16.000Z",
+        "description": "The date and time the person was last changed."
+       },
+       "timezone": {
+        "type": "string",
+        "example": "America/Denver",
+        "description": "The time zone of the person if configured. If no timezone is configured on the account, this field will not be present."
+       },
+       "lastActivity": {
+        "type": "string",
+        "example": "2015-10-18T14:26:16.028Z",
+        "description": "The date and time of the person's last activity within Webex. This will only be returned for people within your organization or an organization you manage. Presence information will not be shown if the authenticated user has [disabled status sharing](https://help.webex.com/nkzs6wl/)."
+       },
+       "siteUrls": {
+        "type": "array",
+        "items": {
+         "type": "string",
+         "example": "mysite.webex.com#attendee"
+        },
+        "description": "One or several site names where this user has a role (host or attendee)."
+       },
+       "sipAddresses": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "properties": {
+          "type": {
+           "type": "string",
+           "enum": [
+            "personal-room",
+            "enterprise",
+            "cloud-calling"
+           ],
+           "description": "The type of SIP address.\n * `personal-room` - Personal room address.\n * `enterprise` - Enterprise address.\n * `cloud-calling` - Cloud calling address.\n"
+          },
+          "value": {
+           "type": "string",
+           "example": "testuser5@mycompany.webex.com",
+           "description": "The SIP address."
+          },
+          "primary": {
+           "type": "boolean",
+           "description": "Primary SIP address of the person."
+          }
+         }
+        },
+        "description": "The user's SIP addresses. Read-only."
+       },
+       "xmppFederationJid": {
+        "type": "string",
+        "example": "user@example.com",
+        "description": "Identifier for intra-domain federation with other XMPP based messenger systems."
+       },
+       "status": {
+        "type": "string",
+        "enum": [
+         "active",
+         "call",
+         "DoNotDisturb",
+         "inactive",
+         "meeting",
+         "OutOfOffice",
+         "pending",
+         "presenting",
+         "unknown"
+        ],
+        "description": "The current presence status of the person. This will only be returned for people within your organization or an organization you manage. Presence information will not be shown if the authenticated user has [disabled status sharing](https://help.webex.com/nkzs6wl/). Presence status is different from Control Hub's \"Last Service Access Time\" which indicates the last time an oAuth token was issued for this user.\n * `active` - Active within the last 10 minutes.\n * `call` - The user is in a call.\n * `DoNotDisturb` - The user has manually set their status to \"Do Not Disturb\".\n * `inactive` - Last activity occurred more than 10 minutes ago.\n * `meeting` - The user is in a meeting.\n * `OutOfOffice` - The user or a Hybrid Calendar service has indicated that they are \"Out of Office\".\n * `pending` - The user has never logged in; a status cannot be determined.\n * `presenting` - The user is sharing content.\n * `unknown` - The user’s status could not be determined.\n"
+       },
+       "invitePending": {
+        "type": "string",
+        "enum": [
+         "true",
+         "false"
+        ],
+        "description": "Whether or not an invite is pending for the user to complete account activation. This property is only returned if the authenticated user is an admin user for the person's organization.\n * `true` - The person has been invited to Webex but has not created an account.\n * `false` - An invite is not pending for this person.\n"
+       },
+       "loginEnabled": {
+        "type": "string",
+        "enum": [
+         "true",
+         "false"
+        ],
+        "description": "Whether or not the user is allowed to use Webex. This property is only returned if the authenticated user is an admin user for the person's organization.\n * `true` - The person _can_ log into Webex.\n * `false` - The person _cannot_ log into Webex.\n"
+       },
+       "type": {
+        "type": "string",
+        "enum": [
+         "person",
+         "bot",
+         "appuser"
+        ],
+        "description": "The type of person account, such as person or bot.\n * `person` - Account belongs to a person.\n * `bot` - Account is a bot user.\n * `appuser` - Account is a [guest user](/docs/guest-issuer).\n"
+       }
+      },
+      "$$ref": "#/components/schemas/Person"
+     },
+     "example": {
+      "id": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS9mNWIzNjE4Ny1jOGRkLTQ3MjctOGIyZi1mOWM0NDdmMjkwNDY",
+      "emails": [
+       "john.andersen@example.com"
+      ],
+      "phoneNumbers": [
+       {
+        "type": "work",
+        "value": "+1 408 526 7209",
+        "primary": true
+       }
+      ],
+      "extension": "133",
+      "locationId": "Y2lzY29zcGFyazovL3VzL0xPQ0FUSU9OLzYzNzE1",
+      "displayName": "John Andersen",
+      "nickName": "John",
+      "firstName": "John",
+      "lastName": "Andersen",
+      "avatar": "https://1efa7a94ed21783e352-c62266528714497a17239ececf39e9e2.ssl.cf1.rackcdn.com/V1~54c844c89e678e5a7b16a306bc2897b9~wx29yGtlTpilEFlYzqPKag==~1600",
+      "orgId": "Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi85NmFiYzJhYS0zZGNjLTExZTUtYTE1Mi1mZTM0ODE5Y2RjOWE",
+      "roles": [
+       "Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi"
+      ],
+      "licenses": [
+       "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi"
+      ],
+      "department": "Sales",
+      "manager": "John Duarte",
+      "managerId": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS80ZGEzYTI0OC05YjBhLTQxMDgtODU0NC1iNTQwMzEyZTU2M2E",
+      "title": "GM",
+      "addresses": [
+       {
+        "type": "work",
+        "country": "US",
+        "locality": "Milpitas",
+        "region": "California",
+        "streetAddress": "1099 Bird Ave.",
+        "postalCode": "99212"
+       }
+      ],
+      "created": "2015-10-18T14:26:16.000Z",
+      "lastModified": "2015-10-18T14:26:16.000Z",
+      "timezone": "America/Denver",
+      "lastActivity": "2015-10-18T14:26:16.028Z",
+      "siteUrls": [
+       "mysite.webex.com#attendee"
+      ],
+      "sipAddresses": [
+       {
+        "type": "personal-room",
+        "value": "testuser5@mycompany.webex.com",
+        "primary": false
+       }
+      ],
+      "xmppFederationJid": "user@example.com",
+      "status": "active",
+      "invitePending": "false",
+      "loginEnabled": "true",
+      "type": "person"
+     }
+    }
+   }
+  },
+  "5b711c5f4657": {
+   "description": "Internal Server Error: Something went wrong on the server. If the issue persists, feel free to contact the [Webex Developer Support team](/explore/support)."
+  },
+  "64739d395719": {
+   "description": "Precondition Required: File(s) cannot be scanned for malware and need to be force downloaded."
+  },
+  "665d7fddef51": {
+   "description": "Gateway Timeout: An upstream server failed to respond on time. If your query uses max parameter, please try to reduce it."
+  },
+  "6da9eec58eb1": {
+   "description": "Method Not Allowed: The request was made to a resource using an HTTP request method that is not supported."
+  },
+  "7e366c334e84": {
+   "description": "Unsupported Media Type: The request was made to a resource without specifying a media type or used a media type that is not supported."
+  },
+  "85581811b787": {
+   "description": "Service Unavailable: Server is overloaded with requests. Try again later."
+  },
+  "a1faeea6dfd2": {
+   "description": "Bad Gateway: The server received an invalid response from an upstream server while processing the request. Try again later."
+  },
+  "a6799fe546cf": {
+   "description": "Forbidden: The request is understood, but it has been refused or access is not allowed."
+  },
+  "b01af66968b3": {
+   "description": "Conflict: The request could not be processed because it conflicts with some established rule of the system. For example, a person may not be added to a room more than once."
+  },
+  "b2df16913ace": {
+   "description": "Unauthorized: Authentication credentials were missing or incorrect."
+  },
+  "e2dd4e61d086": {
+   "description": "Too Many Requests: Too many requests have been sent in a given amount of time and the request has been rate limited. A Retry-After header should be present that specifies how many seconds you need to wait before a successful request can be made."
+  }
+ },
+ "operations": {
+  "DELETE /people/{personId}": {
+   "group": "People",
+   "title": "Delete a Person",
+   "docPath": "/docs/api/v1/people/delete-a-person",
+   "docVersion": 1,
+   "apiTitle": "People",
+   "operation": {
+    "method": "DELETE",
+    "path": "/people/{personId}",
+    "operationId": "Delete_a_Person",
+    "summary": "Delete a Person",
+    "description": "Remove a person from the system.\n\n**Required Administrator Roles:**\n\nThe following administrators have permission to use this API:\n\n**Customer Organization:**\n- Full administrator\n- User administrator\n\n**Partner/External Access:**\n- External full administrator\n\n**Note:** External read-only administrators, provisioning administrators, and device administrators cannot delete users.\n\nSpecify the person ID in the `personId` parameter in the URI.",
+    "parameters": [
+     {
+      "name": "personId",
+      "in": "path",
+      "required": true,
+      "description": "A unique identifier for the person.",
+      "example": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS9mNWIzNjE4Ny1jOGRkLTQ3MjctOGIyZi1mOWM0NDdmMjkwNDY",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "$shared": "2a1f530534f5"
+     },
+     "400": {
+      "$shared": "146c1964b246"
+     },
+     "401": {
+      "$shared": "b2df16913ace"
+     },
+     "403": {
+      "$shared": "a6799fe546cf"
+     },
+     "404": {
+      "$shared": "1ff877bfa646"
+     },
+     "405": {
+      "$shared": "6da9eec58eb1"
+     },
+     "409": {
+      "$shared": "b01af66968b3"
+     },
+     "410": {
+      "$shared": "10c5fa251a25"
+     },
+     "415": {
+      "$shared": "7e366c334e84"
+     },
+     "423": {
+      "$shared": "39251df769bb"
+     },
+     "428": {
+      "$shared": "64739d395719"
+     },
+     "429": {
+      "$shared": "e2dd4e61d086"
+     },
+     "500": {
+      "$shared": "5b711c5f4657"
+     },
+     "502": {
+      "$shared": "a1faeea6dfd2"
+     },
+     "503": {
+      "$shared": "85581811b787"
+     },
+     "504": {
+      "$shared": "665d7fddef51"
+     }
+    },
+    "tags": [
+     "People"
+    ],
+    "__originalOperationId": "Delete a Person",
+    "security": [
+     {
+      "bearer-key": []
+     }
+    ]
+   }
+  },
+  "GET /licenses": {
+   "group": "Licenses",
+   "title": "List Licenses",
+   "docPath": "/docs/api/v1/licenses/list-licenses",
+   "docVersion": 1,
+   "apiTitle": "Licenses",
+   "operation": {
+    "method": "GET",
+    "path": "/licenses",
+    "operationId": "List_Licenses",
+    "summary": "List Licenses",
+    "description": "List all licenses for a given organization.  If no `orgId` is specified, the default is the organization of the authenticated user.\n\nResponse properties that are not applicable to the license will not be present in the response.",
+    "parameters": [
+     {
+      "name": "orgId",
+      "in": "query",
+      "description": "List licenses for this organization.",
+      "example": "Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi85NmFiYzJhYS0zZGNjLTExZTUtYTE1Mi1mZTM0ODE5Y2RjOWE",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "headers": {},
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "items": {
+           "type": "array",
+           "items": {
+            "type": "object",
+            "properties": {
+             "id": {
+              "type": "string",
+              "example": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh",
+              "description": "A unique identifier for the license."
+             },
+             "name": {
+              "type": "string",
+              "example": "Meeting - Webex Meeting Center",
+              "description": "Name of the licensed feature."
+             },
+             "totalUnits": {
+              "type": "number",
+              "example": 50,
+              "description": "Total number of license units allocated."
+             },
+             "consumedUnits": {
+              "type": "number",
+              "example": 5,
+              "description": "Total number of license units consumed."
+             },
+             "consumedByUsers": {
+              "type": "number",
+              "example": 5,
+              "description": "Total number of license units consumed by users."
+             },
+             "consumedByWorkspaces": {
+              "type": "number",
+              "description": "Total number of license units consumed by workspaces."
+             },
+             "subscriptionId": {
+              "type": "string",
+              "example": "Sub-hydraOct26a",
+              "description": "The subscription ID associated with this license. This ID is used in other systems, such as Webex Control Hub."
+             },
+             "siteUrl": {
+              "type": "string",
+              "example": "site1-example.webex.com",
+              "description": "The Webex Meetings site associated with this license."
+             },
+             "siteType": {
+              "type": "string",
+              "enum": [
+               "Control Hub managed site",
+               "Linked site",
+               "Site Admin managed site"
+              ],
+              "description": "The type of site associated with this license.\n * `Control Hub managed site` - The site is managed by Webex Control Hub.\n * `Linked site` - The site is a linked site.\n * `Site Admin managed site` - The site is managed by Site Administration.\n"
+             }
+            },
+            "$$ref": "#/components/schemas/License"
+           }
+          }
+         },
+         "$$ref": "#/components/schemas/LicenseCollectionResponse"
+        },
+        "example": {
+         "items": [
+          {
+           "id": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh",
+           "name": "Meeting - Webex Meeting Center",
+           "totalUnits": 50,
+           "consumedUnits": 5,
+           "consumedByUsers": 5,
+           "consumedByWorkspaces": 0,
+           "subscriptionId": "Sub-hydraOct26a",
+           "siteUrl": "site1-example.webex.com",
+           "siteType": "Control Hub managed site"
+          }
+         ]
+        }
+       }
+      }
+     },
+     "400": {
+      "$shared": "146c1964b246"
+     },
+     "401": {
+      "$shared": "b2df16913ace"
+     },
+     "403": {
+      "$shared": "a6799fe546cf"
+     },
+     "404": {
+      "$shared": "1ff877bfa646"
+     },
+     "405": {
+      "$shared": "6da9eec58eb1"
+     },
+     "409": {
+      "$shared": "b01af66968b3"
+     },
+     "410": {
+      "$shared": "10c5fa251a25"
+     },
+     "415": {
+      "$shared": "7e366c334e84"
+     },
+     "423": {
+      "$shared": "39251df769bb"
+     },
+     "428": {
+      "$shared": "64739d395719"
+     },
+     "429": {
+      "$shared": "e2dd4e61d086"
+     },
+     "500": {
+      "$shared": "5b711c5f4657"
+     },
+     "502": {
+      "$shared": "a1faeea6dfd2"
+     },
+     "503": {
+      "$shared": "85581811b787"
+     },
+     "504": {
+      "$shared": "665d7fddef51"
+     }
+    },
+    "tags": [
+     "Licenses"
+    ],
+    "__originalOperationId": "List_Licenses",
+    "security": [
+     {
+      "bearer-key": []
+     }
+    ]
+   }
+  },
+  "GET /licenses/{licenseId}": {
+   "group": "Licenses",
+   "title": "Get License Details",
+   "docPath": "/docs/api/v1/licenses/get-license-details",
+   "docVersion": 1,
+   "apiTitle": "Licenses",
+   "operation": {
+    "method": "GET",
+    "path": "/licenses/{licenseId}",
+    "operationId": "Get_License_Details",
+    "summary": "Get License Details",
+    "description": "Shows details for a license, by ID.\n\nSpecify the license ID in the `licenseId` parameter in the URI.\nUse the optional query parameter `includeAssignedTo` to get a list of all objects that are assigned with the license. The objects include but not limited to, users including external users. Long result sets will be split into [pages](/docs/basics#pagination).\n\nResponse properties that are not applicable to the license will not be present in the response.",
+    "parameters": [
+     {
+      "name": "licenseId",
+      "in": "path",
+      "required": true,
+      "description": "The unique identifier for the license.",
+      "example": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "includeAssignedTo",
+      "in": "query",
+      "description": "The type of object to whom the license is assigned to.",
+      "example": "user",
+      "schema": {
+       "type": "string",
+       "enum": [
+        "user"
+       ]
+      }
+     },
+     {
+      "name": "next",
+      "in": "query",
+      "description": "List the next set of users. Applicable only if `includeAssignedTo` is populated.",
+      "example": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0VfVVNFUl9QQUdJTkcvT1RaaFltTXlZV0V0TTJSall5MHhNV1UxTFdFeE5USXRabVV6TkRneE9XTmtZemxo",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "description": "A limit on the number of users to be returned in the response. Applicable only if `includeAssignedTo` is populated. limit cannot be more than 300.",
+      "example": 0,
+      "schema": {
+       "type": "number",
+       "default": 300
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "headers": {
+       "Link": {
+        "schema": {
+         "type": "string"
+        }
+       }
+      },
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "id": {
+           "type": "string",
+           "example": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh",
+           "description": "A unique identifier for the license."
+          },
+          "name": {
+           "type": "string",
+           "example": "Meeting - Webex Meeting Center",
+           "description": "Name of the licensed feature."
+          },
+          "totalUnits": {
+           "type": "number",
+           "example": 50,
+           "description": "Total number of license units allocated."
+          },
+          "consumedUnits": {
+           "type": "number",
+           "example": 5,
+           "description": "Total number of license units consumed."
+          },
+          "consumedByUsers": {
+           "type": "number",
+           "example": 5,
+           "description": "Total number of license units consumed by users."
+          },
+          "consumedByWorkspaces": {
+           "type": "number",
+           "description": "Total number of license units consumed by workspaces."
+          },
+          "subscriptionId": {
+           "type": "string",
+           "example": "Sub-hydraOct26a",
+           "description": "The subscription ID associated with this license. This ID is used in other systems, such as Webex Control Hub."
+          },
+          "siteUrl": {
+           "type": "string",
+           "example": "site1-example.webex.com",
+           "description": "The Webex Meetings site associated with this license."
+          },
+          "siteType": {
+           "type": "string",
+           "enum": [
+            "Control Hub managed site",
+            "Linked site",
+            "Site Admin managed site"
+           ],
+           "description": "The type of site associated with this license.\n * `Control Hub managed site` - The site is managed by Webex Control Hub.\n * `Linked site` - The site is a linked site.\n * `Site Admin managed site` - The site is managed by Site Administration.\n"
+          },
+          "users": {
+           "type": "array",
+           "items": {
+            "type": "object",
+            "properties": {
+             "id": {
+              "type": "string",
+              "example": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS9mNWIzNjE4Ny1jOGRkLTQ3MjctOGIyZi1mOWM0NDdmMjkwNDY",
+              "description": "A unique identifier for the user."
+             },
+             "type": {
+              "type": "string",
+              "enum": [
+               "INTERNAL",
+               "EXTERNAL"
+              ],
+              "description": "Indicates if the user is internal or external to the organization.\n * `INTERNAL` - User resides in the license-owned organization.\n * `EXTERNAL` - User resides outside the license-owned organization.\n"
+             },
+             "displayName": {
+              "type": "string",
+              "example": "John Andersen",
+              "description": "The full name of the user."
+             },
+             "email": {
+              "type": "string",
+              "example": "john.andersen@example.com",
+              "description": "Email address of the user."
+             }
+            },
+            "$$ref": "#/components/schemas/Users"
+           },
+           "description": "A list of users to whom the license is assigned to."
+          }
+         },
+         "$$ref": "#/components/schemas/LicensewithUsers"
+        },
+        "example": {
+         "id": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh",
+         "name": "Meeting - Webex Meeting Center",
+         "totalUnits": 50,
+         "consumedUnits": 5,
+         "consumedByUsers": 5,
+         "consumedByWorkspaces": 0,
+         "subscriptionId": "Sub-hydraOct26a",
+         "siteUrl": "site1-example.webex.com",
+         "siteType": "Control Hub managed site",
+         "users": [
+          {
+           "id": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS9mNWIzNjE4Ny1jOGRkLTQ3MjctOGIyZi1mOWM0NDdmMjkwNDY",
+           "type": "INTERNAL",
+           "displayName": "John Andersen",
+           "email": "john.andersen@example.com"
+          }
+         ]
+        }
+       }
+      }
+     },
+     "400": {
+      "$shared": "146c1964b246"
+     },
+     "401": {
+      "$shared": "b2df16913ace"
+     },
+     "403": {
+      "$shared": "a6799fe546cf"
+     },
+     "404": {
+      "$shared": "1ff877bfa646"
+     },
+     "405": {
+      "$shared": "6da9eec58eb1"
+     },
+     "409": {
+      "$shared": "b01af66968b3"
+     },
+     "410": {
+      "$shared": "10c5fa251a25"
+     },
+     "415": {
+      "$shared": "7e366c334e84"
+     },
+     "423": {
+      "$shared": "39251df769bb"
+     },
+     "428": {
+      "$shared": "64739d395719"
+     },
+     "429": {
+      "$shared": "e2dd4e61d086"
+     },
+     "500": {
+      "$shared": "5b711c5f4657"
+     },
+     "502": {
+      "$shared": "a1faeea6dfd2"
+     },
+     "503": {
+      "$shared": "85581811b787"
+     },
+     "504": {
+      "$shared": "665d7fddef51"
+     }
+    },
+    "tags": [
+     "Licenses"
+    ],
+    "__originalOperationId": "Get_License_Details",
+    "security": [
+     {
+      "bearer-key": []
+     }
+    ]
+   }
+  },
+  "GET /people": {
+   "group": "People",
+   "title": "List People",
+   "docPath": "/docs/api/v1/people/list-people",
+   "docVersion": 1,
+   "apiTitle": "People",
+   "operation": {
+    "method": "GET",
+    "path": "/people",
+    "operationId": "List_People",
+    "summary": "List People",
+    "description": "List people in your organization. For most users, either the `email` or `displayName` parameter is required. Admin users can omit these fields and list all users in their organization.\n\nResponse properties associated with a user's presence status, such as `status` or `lastActivity`, will only be returned for people within your organization or an organization you manage. Presence information will not be returned if the authenticated user has [disabled status sharing](https://help.webex.com/nkzs6wl/). Calling /people frequently to poll `status` information for a large set of users will quickly lead to `429` errors and throttling of such requests and is therefore discouraged.\n\nAdmin users can include `Webex Calling` (BroadCloud) user details in the response by specifying `callingData` parameter as `true`. Admin users can list all users in a location. Admin users will receive an enriched payload with additional administrative fields like `licenses`,`roles`, `locations` etc. These fields are shown when accessing a user via GET /people/{id}, not when doing a GET /people?id=\n\nLookup by `email` is only supported for people within the same org or where a partner admin relationship is in place.\n\nLookup by `roles` is only supported for Admin users for the people within the same org.\n\nLong result sets will be split into [pages](/docs/basics#pagination).",
+    "parameters": [
+     {
+      "name": "email",
+      "in": "query",
+      "description": "List people with this email address. For non-admin requests, either this or `displayName` are required. With the exception of partner admins and a managed org relationship, people lookup by email is only available for users in the same org.",
+      "example": "john.andersen@example.com",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "displayName",
+      "in": "query",
+      "description": "List people whose name starts with this string. For non-admin requests, either this or email are required.",
+      "example": "John Andersen",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "id",
+      "in": "query",
+      "description": "List people by ID. Accepts up to 85 person IDs separated by commas. If this parameter is provided then presence information (such as the `lastActivity` or `status` properties) will not be included in the response.",
+      "example": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS9mNWIzNjE4Ny1jOGRkLTQ3MjctOGIyZi1mOWM0NDdmMjkwNDY",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "orgId",
+      "in": "query",
+      "description": "List people in this organization. Only admin users of another organization (such as partners) may use this parameter.",
+      "example": "Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi85NmFiYzJhYS0zZGNjLTExZTUtYTE1Mi1mZTM0ODE5Y2RjOWE",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "roles",
+      "in": "query",
+      "description": "List of roleIds separated by commas.",
+      "example": "Y2lzY29zcGFyazovL3VzL1JPTEUvYXRsYXMtcG9ydGFsLnBhcnRuZXIuc2FsZXNhZG1pbg",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "callingData",
+      "in": "query",
+      "description": "Include Webex Calling user details in the response.",
+      "example": true,
+      "schema": {
+       "type": "boolean",
+       "default": false
+      }
+     },
+     {
+      "name": "locationId",
+      "in": "query",
+      "description": "List people present in this location.",
+      "example": "Y2lzY29zcGFyazovL3VzL0xPQ0FUSU9OLzYzNzE1",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "max",
+      "in": "query",
+      "description": "Limit the maximum number of people in the response. If `callingData`=true, then `max` will not be more than 100. If `locationId` is specified then `max` will not be more than 50.",
+      "example": 100,
+      "schema": {
+       "type": "number",
+       "default": 100
+      }
+     },
+     {
+      "name": "excludeStatus",
+      "in": "query",
+      "description": "Omit people status/availability to enhance query performance.",
+      "example": true,
+      "schema": {
+       "type": "boolean",
+       "default": false
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "headers": {
+       "Link": {
+        "schema": {
+         "type": "string"
+        }
+       }
+      },
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "items": {
+           "type": "array",
+           "items": {
+            "type": "object",
+            "properties": {
+             "id": {
+              "type": "string",
+              "example": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS9mNWIzNjE4Ny1jOGRkLTQ3MjctOGIyZi1mOWM0NDdmMjkwNDY",
+              "description": "A unique identifier for the person."
+             },
+             "emails": {
+              "type": "array",
+              "items": {
+               "type": "string",
+               "example": "john.andersen@example.com"
+              },
+              "description": "The email addresses of the person."
+             },
+             "phoneNumbers": {
+              "type": "array",
+              "items": {
+               "type": "object",
+               "properties": {
+                "type": {
+                 "type": "string",
+                 "enum": [
+                  "work",
+                  "work_extension",
+                  "mobile",
+                  "fax"
+                 ],
+                 "description": "The type of phone number.\n * `work` - Work phone number of the person.\n * `work_extension` - Work extension of the person. For the Webex Calling person, the value will have a routing prefix along with the extension.\n * `mobile` - Mobile number of the person.\n * `fax` - FAX number of the person.\n"
+                },
+                "value": {
+                 "type": "string",
+                 "example": "+1 408 526 7209",
+                 "description": "The phone number."
+                },
+                "primary": {
+                 "type": "boolean",
+                 "example": true,
+                 "description": "Primary number for the person."
+                }
+               }
+              },
+              "description": "Phone numbers for the person."
+             },
+             "extension": {
+              "type": "string",
+              "example": "133",
+              "description": "The Webex Calling extension for the person. Only applies to a person with a Webex Calling license."
+             },
+             "locationId": {
+              "type": "string",
+              "example": "Y2lzY29zcGFyazovL3VzL0xPQ0FUSU9OLzYzNzE1",
+              "description": "The ID of the location for this person retrieved from BroadCloud."
+             },
+             "displayName": {
+              "type": "string",
+              "example": "John Andersen",
+              "description": "The full name of the person."
+             },
+             "nickName": {
+              "type": "string",
+              "example": "John",
+              "description": "The nickname of the person if configured. If no nickname is configured for the person, this field will not be present."
+             },
+             "firstName": {
+              "type": "string",
+              "example": "John",
+              "description": "The first name of the person."
+             },
+             "lastName": {
+              "type": "string",
+              "example": "Andersen",
+              "description": "The last name of the person."
+             },
+             "avatar": {
+              "type": "string",
+              "example": "https://1efa7a94ed21783e352-c62266528714497a17239ececf39e9e2.ssl.cf1.rackcdn.com/V1~54c844c89e678e5a7b16a306bc2897b9~wx29yGtlTpilEFlYzqPKag==~1600",
+              "description": "The URL to the person's avatar in PNG format."
+             },
+             "orgId": {
+              "type": "string",
+              "example": "Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi85NmFiYzJhYS0zZGNjLTExZTUtYTE1Mi1mZTM0ODE5Y2RjOWE",
+              "description": "The ID of the organization to which this person belongs."
+             },
+             "roles": {
+              "type": "array",
+              "items": {
+               "type": "string",
+               "example": "Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi"
+              },
+              "description": "An array of role strings representing the roles to which this admin user belongs."
+             },
+             "licenses": {
+              "type": "array",
+              "items": {
+               "type": "string",
+               "example": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi"
+              },
+              "description": "An array of license strings allocated to this person."
+             },
+             "department": {
+              "type": "string",
+              "example": "Sales",
+              "description": "The business department the user belongs to."
+             },
+             "manager": {
+              "type": "string",
+              "example": "John Duarte",
+              "description": "A manager identifier."
+             },
+             "managerId": {
+              "type": "string",
+              "example": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS80ZGEzYTI0OC05YjBhLTQxMDgtODU0NC1iNTQwMzEyZTU2M2E",
+              "description": "Person ID of the manager."
+             },
+             "title": {
+              "type": "string",
+              "example": "GM",
+              "description": "The person's title."
+             },
+             "addresses": {
+              "type": "array",
+              "items": {
+               "type": "object",
+               "properties": {
+                "type": {
+                 "type": "string",
+                 "example": "work",
+                 "description": "The type of address."
+                },
+                "country": {
+                 "type": "string",
+                 "example": "US",
+                 "description": "The user's country."
+                },
+                "locality": {
+                 "type": "string",
+                 "example": "Milpitas",
+                 "description": "The user's locality, often city."
+                },
+                "region": {
+                 "type": "string",
+                 "example": "California",
+                 "description": "The user's region, often state."
+                },
+                "streetAddress": {
+                 "type": "string",
+                 "example": "1099 Bird Ave.",
+                 "description": "The user's street."
+                },
+                "postalCode": {
+                 "type": "string",
+                 "example": "99212",
+                 "description": "The user's postal or zip code."
+                }
+               }
+              },
+              "description": "A person's addresses."
+             },
+             "created": {
+              "type": "string",
+              "example": "2015-10-18T14:26:16.000Z",
+              "description": "The date and time the person was created."
+             },
+             "lastModified": {
+              "type": "string",
+              "example": "2015-10-18T14:26:16.000Z",
+              "description": "The date and time the person was last changed."
+             },
+             "timezone": {
+              "type": "string",
+              "example": "America/Denver",
+              "description": "The time zone of the person if configured. If no timezone is configured on the account, this field will not be present."
+             },
+             "lastActivity": {
+              "type": "string",
+              "example": "2015-10-18T14:26:16.028Z",
+              "description": "The date and time of the person's last activity within Webex. This will only be returned for people within your organization or an organization you manage. Presence information will not be shown if the authenticated user has [disabled status sharing](https://help.webex.com/nkzs6wl/)."
+             },
+             "siteUrls": {
+              "type": "array",
+              "items": {
+               "type": "string",
+               "example": "mysite.webex.com#attendee"
+              },
+              "description": "One or several site names where this user has a role (host or attendee)."
+             },
+             "sipAddresses": {
+              "type": "array",
+              "items": {
+               "type": "object",
+               "properties": {
+                "type": {
+                 "type": "string",
+                 "enum": [
+                  "personal-room",
+                  "enterprise",
+                  "cloud-calling"
+                 ],
+                 "description": "The type of SIP address.\n * `personal-room` - Personal room address.\n * `enterprise` - Enterprise address.\n * `cloud-calling` - Cloud calling address.\n"
+                },
+                "value": {
+                 "type": "string",
+                 "example": "testuser5@mycompany.webex.com",
+                 "description": "The SIP address."
+                },
+                "primary": {
+                 "type": "boolean",
+                 "description": "Primary SIP address of the person."
+                }
+               }
+              },
+              "description": "The user's SIP addresses. Read-only."
+             },
+             "xmppFederationJid": {
+              "type": "string",
+              "example": "user@example.com",
+              "description": "Identifier for intra-domain federation with other XMPP based messenger systems."
+             },
+             "status": {
+              "type": "string",
+              "enum": [
+               "active",
+               "call",
+               "DoNotDisturb",
+               "inactive",
+               "meeting",
+               "OutOfOffice",
+               "pending",
+               "presenting",
+               "unknown"
+              ],
+              "description": "The current presence status of the person. This will only be returned for people within your organization or an organization you manage. Presence information will not be shown if the authenticated user has [disabled status sharing](https://help.webex.com/nkzs6wl/). Presence status is different from Control Hub's \"Last Service Access Time\" which indicates the last time an oAuth token was issued for this user.\n * `active` - Active within the last 10 minutes.\n * `call` - The user is in a call.\n * `DoNotDisturb` - The user has manually set their status to \"Do Not Disturb\".\n * `inactive` - Last activity occurred more than 10 minutes ago.\n * `meeting` - The user is in a meeting.\n * `OutOfOffice` - The user or a Hybrid Calendar service has indicated that they are \"Out of Office\".\n * `pending` - The user has never logged in; a status cannot be determined.\n * `presenting` - The user is sharing content.\n * `unknown` - The user’s status could not be determined.\n"
+             },
+             "invitePending": {
+              "type": "string",
+              "enum": [
+               "true",
+               "false"
+              ],
+              "description": "Whether or not an invite is pending for the user to complete account activation. This property is only returned if the authenticated user is an admin user for the person's organization.\n * `true` - The person has been invited to Webex but has not created an account.\n * `false` - An invite is not pending for this person.\n"
+             },
+             "loginEnabled": {
+              "type": "string",
+              "enum": [
+               "true",
+               "false"
+              ],
+              "description": "Whether or not the user is allowed to use Webex. This property is only returned if the authenticated user is an admin user for the person's organization.\n * `true` - The person _can_ log into Webex.\n * `false` - The person _cannot_ log into Webex.\n"
+             },
+             "type": {
+              "type": "string",
+              "enum": [
+               "person",
+               "bot",
+               "appuser"
+              ],
+              "description": "The type of person account, such as person or bot.\n * `person` - Account belongs to a person.\n * `bot` - Account is a bot user.\n * `appuser` - Account is a [guest user](/docs/guest-issuer).\n"
+             }
+            },
+            "$$ref": "#/components/schemas/Person"
+           },
+           "description": "An array of person objects."
+          },
+          "notFoundIds": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "description": "An array of person IDs that could not be found."
+          }
+         },
+         "$$ref": "#/components/schemas/PersonCollectionResponse"
+        },
+        "example": {
+         "items": [
+          {
+           "id": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS9mNWIzNjE4Ny1jOGRkLTQ3MjctOGIyZi1mOWM0NDdmMjkwNDY",
+           "emails": [
+            "john.andersen@example.com"
+           ],
+           "phoneNumbers": [
+            {
+             "type": "work",
+             "value": "+1 408 526 7209",
+             "primary": true
+            }
+           ],
+           "extension": "133",
+           "locationId": "Y2lzY29zcGFyazovL3VzL0xPQ0FUSU9OLzYzNzE1",
+           "displayName": "John Andersen",
+           "nickName": "John",
+           "firstName": "John",
+           "lastName": "Andersen",
+           "avatar": "https://1efa7a94ed21783e352-c62266528714497a17239ececf39e9e2.ssl.cf1.rackcdn.com/V1~54c844c89e678e5a7b16a306bc2897b9~wx29yGtlTpilEFlYzqPKag==~1600",
+           "orgId": "Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi85NmFiYzJhYS0zZGNjLTExZTUtYTE1Mi1mZTM0ODE5Y2RjOWE",
+           "roles": [
+            "Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi"
+           ],
+           "licenses": [
+            "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi"
+           ],
+           "department": "Sales",
+           "manager": "John Duarte",
+           "managerId": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS80ZGEzYTI0OC05YjBhLTQxMDgtODU0NC1iNTQwMzEyZTU2M2E",
+           "title": "GM",
+           "addresses": [
+            {
+             "type": "work",
+             "country": "US",
+             "locality": "Milpitas",
+             "region": "California",
+             "streetAddress": "1099 Bird Ave.",
+             "postalCode": "99212"
+            }
+           ],
+           "created": "2015-10-18T14:26:16.000Z",
+           "lastModified": "2015-10-18T14:26:16.000Z",
+           "timezone": "America/Denver",
+           "lastActivity": "2015-10-18T14:26:16.028Z",
+           "siteUrls": [
+            "mysite.webex.com#attendee"
+           ],
+           "sipAddresses": [
+            {
+             "type": "personal-room",
+             "value": "testuser5@mycompany.webex.com",
+             "primary": false
+            }
+           ],
+           "xmppFederationJid": "user@example.com",
+           "status": "active",
+           "invitePending": "false",
+           "loginEnabled": "true",
+           "type": "person"
+          }
+         ],
+         "notFoundIds": []
+        }
+       }
+      }
+     },
+     "400": {
+      "$shared": "146c1964b246"
+     },
+     "401": {
+      "$shared": "b2df16913ace"
+     },
+     "403": {
+      "$shared": "a6799fe546cf"
+     },
+     "404": {
+      "$shared": "1ff877bfa646"
+     },
+     "405": {
+      "$shared": "6da9eec58eb1"
+     },
+     "409": {
+      "$shared": "b01af66968b3"
+     },
+     "410": {
+      "$shared": "10c5fa251a25"
+     },
+     "415": {
+      "$shared": "7e366c334e84"
+     },
+     "423": {
+      "$shared": "39251df769bb"
+     },
+     "428": {
+      "$shared": "64739d395719"
+     },
+     "429": {
+      "$shared": "e2dd4e61d086"
+     },
+     "500": {
+      "$shared": "5b711c5f4657"
+     },
+     "502": {
+      "$shared": "a1faeea6dfd2"
+     },
+     "503": {
+      "$shared": "85581811b787"
+     },
+     "504": {
+      "$shared": "665d7fddef51"
+     }
+    },
+    "tags": [
+     "People"
+    ],
+    "__originalOperationId": "List People",
+    "security": [
+     {
+      "bearer-key": []
+     }
+    ]
+   }
+  },
+  "GET /people/me": {
+   "group": "People",
+   "title": "Get My Own Details",
+   "docPath": "/docs/api/v1/people/get-my-own-details",
+   "docVersion": 1,
+   "apiTitle": "People",
+   "operation": {
+    "method": "GET",
+    "path": "/people/me",
+    "operationId": "Get_My_Own_Details",
+    "summary": "Get My Own Details",
+    "description": "Get profile details for the authenticated user. This is the same as GET `/people/{personId}` using the Person ID associated with your Auth token.\n\nAdmin users can include `Webex Calling` (BroadCloud) user details in the response by specifying `callingData` parameter as true.",
+    "parameters": [
+     {
+      "name": "callingData",
+      "in": "query",
+      "description": "Include Webex Calling user details in the response.",
+      "example": true,
+      "schema": {
+       "type": "boolean",
+       "default": false
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "$shared": "5526ea327583"
+     },
+     "400": {
+      "$shared": "146c1964b246"
+     },
+     "401": {
+      "$shared": "b2df16913ace"
+     },
+     "403": {
+      "$shared": "a6799fe546cf"
+     },
+     "404": {
+      "$shared": "1ff877bfa646"
+     },
+     "405": {
+      "$shared": "6da9eec58eb1"
+     },
+     "409": {
+      "$shared": "b01af66968b3"
+     },
+     "410": {
+      "$shared": "10c5fa251a25"
+     },
+     "415": {
+      "$shared": "7e366c334e84"
+     },
+     "423": {
+      "$shared": "39251df769bb"
+     },
+     "428": {
+      "$shared": "64739d395719"
+     },
+     "429": {
+      "$shared": "e2dd4e61d086"
+     },
+     "500": {
+      "$shared": "5b711c5f4657"
+     },
+     "502": {
+      "$shared": "a1faeea6dfd2"
+     },
+     "503": {
+      "$shared": "85581811b787"
+     },
+     "504": {
+      "$shared": "665d7fddef51"
+     }
+    },
+    "tags": [
+     "People"
+    ],
+    "__originalOperationId": "Get My Own Details",
+    "security": [
+     {
+      "bearer-key": []
+     }
+    ]
+   }
+  },
+  "GET /people/{personId}": {
+   "group": "People",
+   "title": "Get Person Details",
+   "docPath": "/docs/api/v1/people/get-person-details",
+   "docVersion": 1,
+   "apiTitle": "People",
+   "operation": {
+    "method": "GET",
+    "path": "/people/{personId}",
+    "operationId": "Get_Person_Details",
+    "summary": "Get Person Details",
+    "description": "Shows details for a person, by ID.\n\nResponse properties associated with a user's presence status, such as `status` or `lastActivity`, will only be displayed for people within your organization or an organization you manage. Presence information will not be shown if the authenticated user has [disabled status sharing](https://help.webex.com/nkzs6wl/).\n\nAdmin users can include `Webex Calling` (BroadCloud) user details in the response by specifying `callingData` parameter as `true`.\n\nSpecify the person ID in the `personId` parameter in the URI.",
+    "parameters": [
+     {
+      "name": "personId",
+      "in": "path",
+      "required": true,
+      "description": "A unique identifier for the person.",
+      "example": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS9mNWIzNjE4Ny1jOGRkLTQ3MjctOGIyZi1mOWM0NDdmMjkwNDY",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "callingData",
+      "in": "query",
+      "description": "Include Webex Calling user details in the response.",
+      "example": true,
+      "schema": {
+       "type": "boolean",
+       "default": false
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "$shared": "5526ea327583"
+     },
+     "400": {
+      "$shared": "146c1964b246"
+     },
+     "401": {
+      "$shared": "b2df16913ace"
+     },
+     "403": {
+      "$shared": "a6799fe546cf"
+     },
+     "404": {
+      "$shared": "1ff877bfa646"
+     },
+     "405": {
+      "$shared": "6da9eec58eb1"
+     },
+     "409": {
+      "$shared": "b01af66968b3"
+     },
+     "410": {
+      "$shared": "10c5fa251a25"
+     },
+     "415": {
+      "$shared": "7e366c334e84"
+     },
+     "423": {
+      "$shared": "39251df769bb"
+     },
+     "428": {
+      "$shared": "64739d395719"
+     },
+     "429": {
+      "$shared": "e2dd4e61d086"
+     },
+     "500": {
+      "$shared": "5b711c5f4657"
+     },
+     "502": {
+      "$shared": "a1faeea6dfd2"
+     },
+     "503": {
+      "$shared": "85581811b787"
+     },
+     "504": {
+      "$shared": "665d7fddef51"
+     }
+    },
+    "tags": [
+     "People"
+    ],
+    "__originalOperationId": "Get Person Details",
+    "security": [
+     {
+      "bearer-key": []
+     }
+    ]
+   }
+  },
+  "GET /roles": {
+   "group": "Roles",
+   "title": "List Roles",
+   "docPath": "/docs/api/v1/roles/list-roles",
+   "docVersion": 1,
+   "apiTitle": "Roles",
+   "operation": {
+    "method": "GET",
+    "path": "/roles",
+    "operationId": "List_Roles",
+    "summary": "List Roles",
+    "description": "List all roles. Must be called by an admin user.",
+    "parameters": [],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "headers": {},
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "items": {
+           "type": "array",
+           "items": {
+            "type": "object",
+            "properties": {
+             "id": {
+              "type": "string",
+              "example": "Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh",
+              "description": "A unique identifier for the role."
+             },
+             "name": {
+              "type": "string",
+              "example": "Full Administrator",
+              "description": "The name of the role."
+             }
+            },
+            "$$ref": "#/components/schemas/Role"
+           }
+          }
+         },
+         "$$ref": "#/components/schemas/RoleCollectionResponse"
+        },
+        "example": {
+         "items": [
+          {
+           "id": "Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh",
+           "name": "Full Administrator"
+          }
+         ]
+        }
+       }
+      }
+     },
+     "400": {
+      "$shared": "146c1964b246"
+     },
+     "401": {
+      "$shared": "b2df16913ace"
+     },
+     "403": {
+      "$shared": "a6799fe546cf"
+     },
+     "404": {
+      "$shared": "1ff877bfa646"
+     },
+     "405": {
+      "$shared": "6da9eec58eb1"
+     },
+     "409": {
+      "$shared": "b01af66968b3"
+     },
+     "410": {
+      "$shared": "10c5fa251a25"
+     },
+     "415": {
+      "$shared": "7e366c334e84"
+     },
+     "423": {
+      "$shared": "39251df769bb"
+     },
+     "428": {
+      "$shared": "64739d395719"
+     },
+     "429": {
+      "$shared": "e2dd4e61d086"
+     },
+     "500": {
+      "$shared": "5b711c5f4657"
+     },
+     "502": {
+      "$shared": "a1faeea6dfd2"
+     },
+     "503": {
+      "$shared": "85581811b787"
+     },
+     "504": {
+      "$shared": "665d7fddef51"
+     }
+    },
+    "tags": [
+     "Roles"
+    ],
+    "__originalOperationId": "List Roles",
+    "security": [
+     {
+      "bearer-key": []
+     }
+    ]
+   }
+  },
+  "GET /roles/{roleId}": {
+   "group": "Roles",
+   "title": "Get Role Details",
+   "docPath": "/docs/api/v1/roles/get-role-details",
+   "docVersion": 1,
+   "apiTitle": "Roles",
+   "operation": {
+    "method": "GET",
+    "path": "/roles/{roleId}",
+    "operationId": "Get_Role_Details",
+    "summary": "Get Role Details",
+    "description": "Shows details for a role, by ID.\n\nSpecify the role ID in the `roleId` parameter in the URI.",
+    "parameters": [
+     {
+      "name": "roleId",
+      "in": "path",
+      "required": true,
+      "description": "The unique identifier for the role.",
+      "example": "Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "headers": {},
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "id": {
+           "type": "string",
+           "example": "Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh",
+           "description": "A unique identifier for the role."
+          },
+          "name": {
+           "type": "string",
+           "example": "Full Administrator",
+           "description": "The name of the role."
+          }
+         },
+         "$$ref": "#/components/schemas/Role"
+        },
+        "example": {
+         "id": "Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh",
+         "name": "Full Administrator"
+        }
+       }
+      }
+     },
+     "400": {
+      "$shared": "146c1964b246"
+     },
+     "401": {
+      "$shared": "b2df16913ace"
+     },
+     "403": {
+      "$shared": "a6799fe546cf"
+     },
+     "404": {
+      "$shared": "1ff877bfa646"
+     },
+     "405": {
+      "$shared": "6da9eec58eb1"
+     },
+     "409": {
+      "$shared": "b01af66968b3"
+     },
+     "410": {
+      "$shared": "10c5fa251a25"
+     },
+     "415": {
+      "$shared": "7e366c334e84"
+     },
+     "423": {
+      "$shared": "39251df769bb"
+     },
+     "428": {
+      "$shared": "64739d395719"
+     },
+     "429": {
+      "$shared": "e2dd4e61d086"
+     },
+     "500": {
+      "$shared": "5b711c5f4657"
+     },
+     "502": {
+      "$shared": "a1faeea6dfd2"
+     },
+     "503": {
+      "$shared": "85581811b787"
+     },
+     "504": {
+      "$shared": "665d7fddef51"
+     }
+    },
+    "tags": [
+     "Roles"
+    ],
+    "__originalOperationId": "Get Role Details",
+    "security": [
+     {
+      "bearer-key": []
+     }
+    ]
+   }
+  },
+  "PATCH /licenses/users": {
+   "group": "Licenses",
+   "title": "Assign Licenses to Users",
+   "docPath": "/docs/api/v1/licenses/assign-licenses-to-users",
+   "docVersion": 1,
+   "apiTitle": "Licenses",
+   "operation": {
+    "method": "PATCH",
+    "path": "/licenses/users",
+    "operationId": "Assign_Licenses_to_Users",
+    "summary": "Assign Licenses to Users",
+    "description": "Assign licenses and attendee `siteUrls` to existing users. Only an admin can assign licenses. Only existing users can be assigned a license. Assign meeting licenses to users outside your organization (Status will be pending until the user accepts the invite)\n\nAt least one of the following body parameters is required to assign license to the user: `email`, `personId`. For Calling license assignment, properties `phoneNumber` or `extension` are required. If `phoneNumber` is not provided then `locationId` is mandatory.\n\nWhen assigning licenses and attendee siteUrls to a user who does not belong to the organization, the licenses and siteUrls remain in pending state until the user accepts them. The `pendingLicenses` and `pendingSiteUrls` are part of the response.",
+    "parameters": [],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "example": {
+        "email": "john.andersen@example.com",
+        "personId": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS9mNWIzNjE4Ny1jOGRkLTQ3MjctOGIyZi1mOWM0NDdmMjkwNDY",
+        "orgId": "Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi85NmFiYzJhYS0zZGNjLTExZTUtYTE1Mi1mZTM0ODE5Y2RjOWE",
+        "licenses": [
+         {
+          "id": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh",
+          "operation": "add",
+          "properties": {
+           "locationId": "Y2lzY29zcGFyazovL3VzL0xPQ0FUSU9OLzYzNzE1",
+           "phoneNumber": "+14085267209",
+           "extension": "133"
+          }
+         },
+         {
+          "id": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LTU2eTctMGY0NTU2YWRleWhu",
+          "operation": "remove"
+         },
+         {
+          "id": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LTIzNDItMGY0NTU2YWRlZXJm",
+          "operation": "add"
+         }
+        ],
+        "siteUrls": [
+         {
+          "siteUrl": "mysite.webex.com",
+          "accountType": "attendee",
+          "operation": "add"
+         }
+        ]
+       },
+       "schema": {
+        "type": "object",
+        "properties": {
+         "email": {
+          "type": "string",
+          "example": "john.andersen@example.com",
+          "description": "Email address of the user."
+         },
+         "personId": {
+          "type": "string",
+          "example": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS9mNWIzNjE4Ny1jOGRkLTQ3MjctOGIyZi1mOWM0NDdmMjkwNDY",
+          "description": "A unique identifier for the user."
+         },
+         "orgId": {
+          "type": "string",
+          "example": "Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi85NmFiYzJhYS0zZGNjLTExZTUtYTE1Mi1mZTM0ODE5Y2RjOWE",
+          "description": "The ID of the organization to which the licenses and siteUrls belong. If not specified, the organization ID from the OAuth token is used."
+         },
+         "licenses": {
+          "type": "array",
+          "items": {
+           "type": "object",
+           "required": [
+            "id"
+           ],
+           "properties": {
+            "id": {
+             "type": "string",
+             "example": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh",
+             "description": "A unique identifier for the license."
+            },
+            "operation": {
+             "type": "string",
+             "enum": [
+              "remove",
+              "add"
+             ],
+             "description": "Operation type. The default operation is `add` if no operation is specified.\n * `remove` - Remove the license from the user\n * `add` - Assign the license to the user\n"
+            },
+            "properties": {
+             "type": "object",
+             "properties": {
+              "locationId": {
+               "type": "string",
+               "example": "Y2lzY29zcGFyazovL3VzL0xPQ0FUSU9OLzYzNzE1",
+               "description": "The ID of the location for this user. Applicable to Webex Calling license."
+              },
+              "phoneNumber": {
+               "type": "string",
+               "example": "14085267209",
+               "description": "Work phone number for the user. Applicable to Webex Calling license."
+              },
+              "extension": {
+               "type": "string",
+               "example": "133",
+               "description": "Webex Calling extension of the user. Applicable to Webex Calling license."
+              }
+             },
+             "$$ref": "#/components/schemas/LicenseProperties"
+            }
+           },
+           "$$ref": "#/components/schemas/LicenseRequest"
+          },
+          "description": "An array of licenses to be assigned to the user."
+         },
+         "siteUrls": {
+          "type": "array",
+          "items": {
+           "type": "object",
+           "required": [
+            "siteUrl",
+            "accountType"
+           ],
+           "properties": {
+            "siteUrl": {
+             "type": "string",
+             "example": "mysite.webex.com",
+             "description": "Attendee access on the site."
+            },
+            "accountType": {
+             "type": "string",
+             "enum": [
+              "attendee"
+             ],
+             "description": "Account type. Only `attendee` type is supported. For host account, remove attendee and assign the license on that site.\n * `attendee` - Attendee role on the siteUrl\n"
+            },
+            "operation": {
+             "type": "string",
+             "enum": [
+              "remove",
+              "add"
+             ],
+             "description": "Operation type. The default operation is `add` if no operation is specified.\n * `remove` - Remove the attendee role from the user.\n * `add` - Add the attendee role to the user.\n"
+            }
+           },
+           "$$ref": "#/components/schemas/SiteUrlsRequest"
+          },
+          "description": "An array of siteUrls to be assigned to the user."
+         }
+        },
+        "$$ref": "#/components/schemas/PatchUserLicenses"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "OK",
+      "headers": {},
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "orgId": {
+           "type": "string",
+           "example": "Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi85NmFiYzJhYS0zZGNjLTExZTUtYTE1Mi1mZTM0ODE5Y2RjOWE",
+           "description": "The ID of the organization to which this user belongs."
+          },
+          "personId": {
+           "type": "string",
+           "example": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS9mNWIzNjE4Ny1jOGRkLTQ3MjctOGIyZi1mOWM0NDdmMjkwNDY",
+           "description": "A unique identifier for the user."
+          },
+          "email": {
+           "type": "string",
+           "example": "john.andersen@example.com",
+           "description": "The email address of this user."
+          },
+          "licenses": {
+           "type": "array",
+           "items": {
+            "type": "string",
+            "example": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi,Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LTIzNDItMGY0NTU2YWRlZXJm"
+           },
+           "description": "An array of license strings that are assigned to this user."
+          },
+          "siteUrls": {
+           "type": "array",
+           "items": {
+            "type": "object",
+            "properties": {
+             "siteUrl": {
+              "type": "string",
+              "example": "mysite.webex.com",
+              "description": "`siteUrl` assigned to the user."
+             },
+             "accountType": {
+              "type": "string",
+              "enum": [
+               "attendee",
+               "host"
+              ],
+              "description": "Account Type of the site.\n * `attendee` - Attendee account on the site.\n * `host` - Host account on the site.\n"
+             }
+            },
+            "$$ref": "#/components/schemas/SiteResponse"
+           },
+           "description": "An array of `siteUrls` and their `accountType` that are assigned to this user."
+          },
+          "pendingLicenses": {
+           "type": "array",
+           "items": {
+            "type": "string",
+            "example": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYWJj,Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWFiY2Rl"
+           },
+           "description": "An array of license strings that are in pending state. This is only applicable to users outside the organization."
+          },
+          "pendingSiteUrls": {
+           "type": "array",
+           "items": {
+            "type": "object",
+            "properties": {
+             "siteUrl": {
+              "type": "string",
+              "example": "mysite.webex.com",
+              "description": "`siteUrl` assigned to the user."
+             },
+             "accountType": {
+              "type": "string",
+              "enum": [
+               "attendee",
+               "host"
+              ],
+              "description": "Account Type of the site.\n * `attendee` - Attendee account on the site.\n * `host` - Host account on the site.\n"
+             }
+            },
+            "$$ref": "#/components/schemas/SiteResponse"
+           },
+           "description": "An array of `siteUrls` and their `accountType` that are in pending state. This is only applicable to users outside the organization."
+          }
+         },
+         "$$ref": "#/components/schemas/UserLicensesResponse"
+        },
+        "example": {
+         "orgId": "Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi85NmFiYzJhYS0zZGNjLTExZTUtYTE1Mi1mZTM0ODE5Y2RjOWE",
+         "personId": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS9mNWIzNjE4Ny1jOGRkLTQ3MjctOGIyZi1mOWM0NDdmMjkwNDY",
+         "email": "john.andersen@example.com",
+         "licenses": [
+          "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh",
+          "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi",
+          "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LTIzNDItMGY0NTU2YWRlZXJm"
+         ],
+         "siteUrls": [
+          {
+           "siteUrl": "mysite.webex.com",
+           "accountType": "attendee"
+          },
+          {
+           "siteUrl": "myhostsite.webex.com",
+           "accountType": "host"
+          }
+         ]
+        }
+       }
+      }
+     },
+     "206": {
+      "description": "Partial Content: Some licenses were successfully assigned, but others could not be assigned due to various constraints or errors. Compare the returned licenses with the requested licenses to determine which ones failed.",
+      "headers": {},
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "orgId": {
+           "type": "string",
+           "example": "Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi85NmFiYzJhYS0zZGNjLTExZTUtYTE1Mi1mZTM0ODE5Y2RjOWE",
+           "description": "The ID of the organization to which this user belongs."
+          },
+          "personId": {
+           "type": "string",
+           "example": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS9mNWIzNjE4Ny1jOGRkLTQ3MjctOGIyZi1mOWM0NDdmMjkwNDY",
+           "description": "A unique identifier for the user."
+          },
+          "email": {
+           "type": "string",
+           "example": "john.andersen@example.com",
+           "description": "The email address of this user."
+          },
+          "licenses": {
+           "type": "array",
+           "items": {
+            "type": "string",
+            "example": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi,Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LTIzNDItMGY0NTU2YWRlZXJm"
+           },
+           "description": "An array of license strings that are assigned to this user."
+          },
+          "siteUrls": {
+           "type": "array",
+           "items": {
+            "type": "object",
+            "properties": {
+             "siteUrl": {
+              "type": "string",
+              "example": "mysite.webex.com",
+              "description": "`siteUrl` assigned to the user."
+             },
+             "accountType": {
+              "type": "string",
+              "enum": [
+               "attendee",
+               "host"
+              ],
+              "description": "Account Type of the site.\n * `attendee` - Attendee account on the site.\n * `host` - Host account on the site.\n"
+             }
+            },
+            "$$ref": "#/components/schemas/SiteResponse"
+           },
+           "description": "An array of `siteUrls` and their `accountType` that are assigned to this user."
+          },
+          "pendingLicenses": {
+           "type": "array",
+           "items": {
+            "type": "string",
+            "example": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYWJj,Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWFiY2Rl"
+           },
+           "description": "An array of license strings that are in pending state. This is only applicable to users outside the organization."
+          },
+          "pendingSiteUrls": {
+           "type": "array",
+           "items": {
+            "type": "object",
+            "properties": {
+             "siteUrl": {
+              "type": "string",
+              "example": "mysite.webex.com",
+              "description": "`siteUrl` assigned to the user."
+             },
+             "accountType": {
+              "type": "string",
+              "enum": [
+               "attendee",
+               "host"
+              ],
+              "description": "Account Type of the site.\n * `attendee` - Attendee account on the site.\n * `host` - Host account on the site.\n"
+             }
+            },
+            "$$ref": "#/components/schemas/SiteResponse"
+           },
+           "description": "An array of `siteUrls` and their `accountType` that are in pending state. This is only applicable to users outside the organization."
+          }
+         },
+         "$$ref": "#/components/schemas/UserLicensesResponse"
+        },
+        "example": {
+         "orgId": "Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi85NmFiYzJhYS0zZGNjLTExZTUtYTE1Mi1mZTM0ODE5Y2RjOWE",
+         "personId": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS9mNWIzNjE4Ny1jOGRkLTQ3MjctOGIyZi1mOWM0NDdmMjkwNDY",
+         "email": "john.andersen@example.com",
+         "licenses": [
+          "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh"
+         ],
+         "siteUrls": [
+          {
+           "siteUrl": "mysite.webex.com",
+           "accountType": "attendee"
+          }
+         ]
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Bad Request: The request was invalid or cannot be otherwise served. Specific error codes indicate license assignment issues.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "message": {
+           "type": "string",
+           "description": "A human readable description of the error."
+          },
+          "errors": {
+           "type": "array",
+           "items": {
+            "type": "object",
+            "properties": {
+             "errorCode": {
+              "type": "integer",
+              "description": "A specific error code identifying the type of error.",
+              "enum": [
+               400,
+               400000,
+               400112,
+               400118,
+               400216,
+               400404,
+               400406,
+               400407,
+               400408,
+               400410,
+               400411,
+               400413,
+               700003,
+               700004,
+               700005,
+               700006
+              ]
+             },
+             "description": {
+              "type": "string",
+              "description": "A detailed description of the specific error. Error descriptions by code:\n* 400: Unable to find location.\n* 400000: License not recognized {licenses}\n* 400112: Changing a user's Webex Calling license from Professional to Standard is not allowed. The following license(s) could not be applied as requested: {licenses}\n* 400118: User management of Messenger license {licenses} is not supported\n* 400216: Request contains invalid attendee siteUrls: {siteUrl}\n* 400404: User cannot have both Webex Calling Professional and Standard License together. The following license(s) could not be applied as requested: {licenses}\n* 400406: User cannot have both Webex Calling Standard and Webex Attendant Console licenses together. The following license(s) could not be applied as requested: {licenses}\n* 400407: User cannot have both Webex Calling Standard and CX Essential licenses together. The following license(s) could not be applied as requested: {licenses}\n* 400408: User needs Webex Calling Professional license to be assigned before assigning Webex Attendant Console: {licenses}\n* 400410: Changing a user's license from CX Essential to Webex Calling Standard is not allowed. The following license(s) could not be applied as requested: {licenses}\n* 400411: Each Webex Calling license should contain its own calling properties. The following license(s) do not have properties: {licenses}\n* 400413: Could not apply the following license(s): {licenses} as the user can be assigned only one of licenses with the offer code from the list:\n* 700003: Free teams messaging mandatory for paid teams messaging license. The following license could not be applied as requested: {licenses}\n* 700004: Free teams meeting mandatory for paid teams meeting license. The following license could not be applied as requested: {licenses}\n* 700005: Free teams messaging mandatory for teams meeting license. The following license(s) could not be applied as requested: {licenses}\n* 700006: Screen Share {licenses} is implicitly assigned and cannot be removed"
+             }
+            },
+            "$$ref": "#/components/schemas/ErrorDetail"
+           },
+           "description": "An array of error details."
+          },
+          "trackingId": {
+           "type": "string",
+           "description": "A unique identifier to help with debugging."
+          }
+         },
+         "$$ref": "#/components/schemas/LicenseError",
+         "example": {
+          "message": "License assignment failed",
+          "errors": [
+           {
+            "errorCode": 400112,
+            "description": "Changing a user's Webex Calling license from Professional to Standard is not allowed. The following license(s) could not be applied as requested: {licenses}"
+           }
+          ],
+          "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+         }
+        },
+        "examples": {
+         "locationNotFound": {
+          "summary": "Location not found",
+          "value": {
+           "message": "Unable to find location",
+           "errors": [
+            {
+             "errorCode": 400,
+             "description": "Unable to find location."
+            }
+           ],
+           "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+          }
+         },
+         "licenseNotRecognized": {
+          "summary": "License not recognized",
+          "value": {
+           "message": "License not recognized",
+           "errors": [
+            {
+             "errorCode": 400000,
+             "description": "License not recognized {licenses}"
+            }
+           ],
+           "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+          }
+         },
+         "callingLicenseDowngrade": {
+          "summary": "Webex Calling license downgrade not allowed",
+          "value": {
+           "message": "License assignment failed",
+           "errors": [
+            {
+             "errorCode": 400112,
+             "description": "Changing a user's Webex Calling license from Professional to Standard is not allowed. The following license(s) could not be applied as requested: {licenses}"
+            }
+           ],
+           "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+          }
+         },
+         "messengerLicenseManagement": {
+          "summary": "Messenger license management not supported",
+          "value": {
+           "message": "License management not supported",
+           "errors": [
+            {
+             "errorCode": 400118,
+             "description": "User management of Messenger license {licenses} is not supported"
+            }
+           ],
+           "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+          }
+         },
+         "invalidSiteUrl": {
+          "summary": "Invalid attendee site URLs",
+          "value": {
+           "message": "Invalid site URL",
+           "errors": [
+            {
+             "errorCode": 400216,
+             "description": "Request contains invalid attendee siteUrls: {siteUrl}"
+            }
+           ],
+           "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+          }
+         },
+         "conflictingCallingLicenses": {
+          "summary": "Conflicting Webex Calling licenses",
+          "value": {
+           "message": "License conflict",
+           "errors": [
+            {
+             "errorCode": 400404,
+             "description": "User cannot have both Webex Calling Professional and Standard License together. The following license(s) could not be applied as requested: {licenses}"
+            }
+           ],
+           "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+          }
+         },
+         "callingStandardAttendantConflict": {
+          "summary": "Webex Calling Standard and Attendant Console conflict",
+          "value": {
+           "message": "License conflict",
+           "errors": [
+            {
+             "errorCode": 400406,
+             "description": "User cannot have both Webex Calling Standard and Webex Attendant Console licenses together. The following license(s) could not be applied as requested: {licenses}"
+            }
+           ],
+           "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+          }
+         },
+         "callingStandardCXEssentialConflict": {
+          "summary": "Webex Calling Standard and CX Essential conflict",
+          "value": {
+           "message": "License conflict",
+           "errors": [
+            {
+             "errorCode": 400407,
+             "description": "User cannot have both Webex Calling Standard and CX Essential licenses together. The following license(s) could not be applied as requested: {licenses}"
+            }
+           ],
+           "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+          }
+         },
+         "attendantConsolePrerequisite": {
+          "summary": "Webex Attendant Console prerequisite missing",
+          "value": {
+           "message": "License prerequisite missing",
+           "errors": [
+            {
+             "errorCode": 400408,
+             "description": "User needs Webex Calling Professional license to be assigned before assigning Webex Attendant Console: {licenses}"
+            }
+           ],
+           "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+          }
+         },
+         "cxEssentialDowngrade": {
+          "summary": "CX Essential to Webex Calling Standard downgrade not allowed",
+          "value": {
+           "message": "License downgrade not allowed",
+           "errors": [
+            {
+             "errorCode": 400410,
+             "description": "Changing a user's license from CX Essential to Webex Calling Standard is not allowed. The following license(s) could not be applied as requested: {licenses}"
+            }
+           ],
+           "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+          }
+         },
+         "missingCallingProperties": {
+          "summary": "Missing calling properties",
+          "value": {
+           "message": "License properties missing",
+           "errors": [
+            {
+             "errorCode": 400411,
+             "description": "Each Webex Calling license should contain its own calling properties. The following license(s) do not have properties: {licenses}"
+            }
+           ],
+           "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+          }
+         },
+         "exclusiveLicenseConflict": {
+          "summary": "Exclusive license conflict",
+          "value": {
+           "message": "License conflict",
+           "errors": [
+            {
+             "errorCode": 400413,
+             "description": "Could not apply the following license(s): {licenses} as the user can be assigned only one of licenses with the offer code from the list:"
+            }
+           ],
+           "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+          }
+         },
+         "freeMessagingPrerequisite": {
+          "summary": "Free teams messaging prerequisite for paid messaging",
+          "value": {
+           "message": "License prerequisite missing",
+           "errors": [
+            {
+             "errorCode": 700003,
+             "description": "Free teams messaging mandatory for paid teams messaging license. The following license could not be applied as requested: {licenses}"
+            }
+           ],
+           "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+          }
+         },
+         "freeMeetingPrerequisite": {
+          "summary": "Free teams meeting prerequisite for paid meeting",
+          "value": {
+           "message": "License prerequisite missing",
+           "errors": [
+            {
+             "errorCode": 700004,
+             "description": "Free teams meeting mandatory for paid teams meeting license. The following license could not be applied as requested: {licenses}"
+            }
+           ],
+           "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+          }
+         },
+         "messagingPrerequisiteForMeeting": {
+          "summary": "Free teams messaging prerequisite for meeting",
+          "value": {
+           "message": "License prerequisite missing",
+           "errors": [
+            {
+             "errorCode": 700005,
+             "description": "Free teams messaging mandatory for teams meeting license. The following license(s) could not be applied as requested: {licenses}"
+            }
+           ],
+           "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+          }
+         },
+         "screenShareImplicit": {
+          "summary": "Screen Share license cannot be removed",
+          "value": {
+           "message": "License removal not allowed",
+           "errors": [
+            {
+             "errorCode": 700006,
+             "description": "Screen Share {licenses} is implicitly assigned and cannot be removed"
+            }
+           ],
+           "trackingId": "NA_88b8b4ce-6338-4d3a-8d6c-22b37e62354f"
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "$shared": "b2df16913ace"
+     },
+     "403": {
+      "$shared": "a6799fe546cf"
+     },
+     "404": {
+      "$shared": "1ff877bfa646"
+     },
+     "405": {
+      "$shared": "6da9eec58eb1"
+     },
+     "409": {
+      "$shared": "b01af66968b3"
+     },
+     "410": {
+      "$shared": "10c5fa251a25"
+     },
+     "415": {
+      "$shared": "7e366c334e84"
+     },
+     "423": {
+      "$shared": "39251df769bb"
+     },
+     "428": {
+      "$shared": "64739d395719"
+     },
+     "429": {
+      "$shared": "e2dd4e61d086"
+     },
+     "500": {
+      "$shared": "5b711c5f4657"
+     },
+     "502": {
+      "$shared": "a1faeea6dfd2"
+     },
+     "503": {
+      "$shared": "85581811b787"
+     },
+     "504": {
+      "$shared": "665d7fddef51"
+     }
+    },
+    "tags": [
+     "Licenses"
+    ],
+    "__originalOperationId": "Assign_Licenses_to_Users",
+    "security": [
+     {
+      "bearer-key": []
+     }
+    ]
+   }
+  },
+  "POST /people": {
+   "group": "People",
+   "title": "Create a Person",
+   "docPath": "/docs/api/v1/people/create-a-person",
+   "docVersion": 1,
+   "apiTitle": "People",
+   "operation": {
+    "method": "POST",
+    "path": "/people",
+    "operationId": "Create_a_Person",
+    "summary": "Create a Person",
+    "description": "Create a new user account for a given organization. Only an admin can create a new user account.\n\nAt least one of the following body parameters is required to create a new user: `displayName`, `firstName`, `lastName`.\n\nCurrently, users may have only one email address associated with their account. The `emails` parameter is an array, which accepts multiple values to allow for future expansion, but currently only one email address will be used for the new user.\n\nAdmin users can include `Webex calling` (BroadCloud) user details in the response by specifying `callingData` parameter as true. It may happen that the POST request with calling data returns a 400 status, but the person was created still. One way to get into this state is if an invalid phone number is assigned to a user. The people API aggregates calls to several other microservices, and one may have failed. A best practice is to check if the user exists before retrying. This can be done with the user's email address and a GET /people.\n\nWhen doing attendee management, append `#attendee` to the `siteUrl` parameter (e.g. `mysite.webex.com#attendee`) to make the new user an attendee for a site.\n\n**NOTES**:\n\n* For creating a `Webex Calling` user, you must provide `phoneNumbers` or `extension`, `locationId`, and `licenses` string in the same request.\n\n* `SipAddresses` are asigned via an asynchronous process. This means that the POST response may not show the SIPAddresses immediately. Instead you can verify them with a separate GET to /people, after they were newly configured.\n\n* When assigning multiple licenses in a single request, the system will assign all valid and available licenses. If any requested licenses cannot be assigned, the operation will continue with the remaining licenses. As a result, it is possible that not all requested licenses are assigned to the user.",
+    "parameters": [
+     {
+      "name": "callingData",
+      "in": "query",
+      "description": "Include Webex Calling user details in the response.",
+      "example": true,
+      "schema": {
+       "type": "boolean",
+       "default": false
+      }
+     },
+     {
+      "name": "minResponse",
+      "in": "query",
+      "description": "Set to `true` to improve performance by omitting person details and returning only the ID in the response when successful. If unsuccessful the response will have optional error details.",
+      "example": true,
+      "schema": {
+       "type": "boolean",
+       "default": false
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "example": {
+        "emails": [
+         "john.andersen@example.com"
+        ],
+        "phoneNumbers": [
+         {
+          "type": "work",
+          "value": "408 526 7209"
+         }
+        ],
+        "extension": "133",
+        "locationId": "Y2lzY29zcGFyazovL3VzL0xPQ0FUSU9OLzYzNzE1",
+        "displayName": "John Andersen",
+        "firstName": "John",
+        "lastName": "Andersen",
+        "avatar": "https://1efa7a94ed21783e352-c62266528714497a17239ececf39e9e2.ssl.cf1.rackcdn.com/V1~54c844c89e678e5a7b16a306bc2897b9~wx29yGtlTpilEFlYzqPKag==~1600",
+        "orgId": "Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi85NmFiYzJhYS0zZGNjLTExZTUtYTE1Mi1mZTM0ODE5Y2RjOWE",
+        "roles": [
+         "Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi"
+        ],
+        "licenses": [
+         "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi"
+        ],
+        "department": "Sales",
+        "manager": "John Duarte",
+        "managerId": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS80ZGEzYTI0OC05YjBhLTQxMDgtODU0NC1iNTQwMzEyZTU2M2E",
+        "title": "GM",
+        "addresses": [
+         {
+          "type": "work",
+          "country": "US",
+          "locality": "Milpitas",
+          "region": "California",
+          "streetAddress": "1099 Bird Ave.",
+          "postalCode": "99212"
+         }
+        ],
+        "siteUrls": [
+         "mysite.webex.com#attendee"
+        ]
+       },
+       "schema": {
+        "type": "object",
+        "required": [
+         "emails"
+        ],
+        "properties": {
+         "emails": {
+          "type": "array",
+          "items": {
+           "type": "string",
+           "example": "john.andersen@example.com"
+          },
+          "description": "The email addresses of the person. Only one email address is allowed per person."
+         },
+         "phoneNumbers": {
+          "type": "array",
+          "items": {
+           "type": "object",
+           "properties": {
+            "type": {
+             "type": "string",
+             "enum": [
+              "work"
+             ],
+             "description": "The type of phone number. Valid values are 'work'"
+            },
+            "value": {
+             "type": "string",
+             "example": "408 526 7209",
+             "description": "The phone number."
+            }
+           }
+          },
+          "description": "Phone numbers for the person. Only settable for Webex Calling. Requires a Webex Calling license."
+         },
+         "extension": {
+          "type": "string",
+          "example": "133",
+          "description": "Webex Calling extension of the person. This is only settable for a person with a Webex Calling license."
+         },
+         "locationId": {
+          "type": "string",
+          "example": "Y2lzY29zcGFyazovL3VzL0xPQ0FUSU9OLzYzNzE1",
+          "description": "The ID of the location for this person."
+         },
+         "displayName": {
+          "type": "string",
+          "example": "John Andersen",
+          "description": "The full name of the person."
+         },
+         "firstName": {
+          "type": "string",
+          "example": "John",
+          "description": "The first name of the person."
+         },
+         "lastName": {
+          "type": "string",
+          "example": "Andersen",
+          "description": "The last name of the person."
+         },
+         "avatar": {
+          "type": "string",
+          "example": "https://1efa7a94ed21783e352-c62266528714497a17239ececf39e9e2.ssl.cf1.rackcdn.com/V1~54c844c89e678e5a7b16a306bc2897b9~wx29yGtlTpilEFlYzqPKag==~1600",
+          "description": "The URL to the person's avatar in PNG format."
+         },
+         "orgId": {
+          "type": "string",
+          "example": "Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi85NmFiYzJhYS0zZGNjLTExZTUtYTE1Mi1mZTM0ODE5Y2RjOWE",
+          "description": "The ID of the organization to which this person belongs."
+         },
+         "roles": {
+          "type": "array",
+          "items": {
+           "type": "string",
+           "example": "Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi"
+          },
+          "description": "An array of role strings representing the roles to which this admin user belongs."
+         },
+         "licenses": {
+          "type": "array",
+          "items": {
+           "type": "string",
+           "example": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi"
+          },
+          "description": "An array of license strings allocated to this person."
+         },
+         "department": {
+          "type": "string",
+          "example": "Sales",
+          "description": "The business department the user belongs to."
+         },
+         "manager": {
+          "type": "string",
+          "example": "John Duarte",
+          "description": "A manager identifier."
+         },
+         "managerId": {
+          "type": "string",
+          "example": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS80ZGEzYTI0OC05YjBhLTQxMDgtODU0NC1iNTQwMzEyZTU2M2E",
+          "description": "Person ID of the manager."
+         },
+         "title": {
+          "type": "string",
+          "example": "GM",
+          "description": "The person's title."
+         },
+         "addresses": {
+          "type": "array",
+          "items": {
+           "type": "object",
+           "properties": {
+            "type": {
+             "type": "string",
+             "example": "work",
+             "description": "The type of address."
+            },
+            "country": {
+             "type": "string",
+             "example": "US",
+             "description": "The user's country."
+            },
+            "locality": {
+             "type": "string",
+             "example": "Milpitas",
+             "description": "The user's locality, often city."
+            },
+            "region": {
+             "type": "string",
+             "example": "California",
+             "description": "The user's region, often state."
+            },
+            "streetAddress": {
+             "type": "string",
+             "example": "1099 Bird Ave.",
+             "description": "The user's street."
+            },
+            "postalCode": {
+             "type": "string",
+             "example": "99212",
+             "description": "The user's postal or zip code."
+            }
+           }
+          },
+          "description": "A person's addresses."
+         },
+         "siteUrls": {
+          "type": "array",
+          "items": {
+           "type": "string",
+           "example": "mysite.webex.com#attendee"
+          },
+          "description": "One or several site names where this user has an attendee role. Append `#attendee` to the sitename (e.g.: `mysite.webex.com#attendee`)."
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "$shared": "5526ea327583"
+     },
+     "400": {
+      "$shared": "146c1964b246"
+     },
+     "401": {
+      "$shared": "b2df16913ace"
+     },
+     "403": {
+      "$shared": "a6799fe546cf"
+     },
+     "404": {
+      "$shared": "1ff877bfa646"
+     },
+     "405": {
+      "$shared": "6da9eec58eb1"
+     },
+     "409": {
+      "$shared": "b01af66968b3"
+     },
+     "410": {
+      "$shared": "10c5fa251a25"
+     },
+     "415": {
+      "$shared": "7e366c334e84"
+     },
+     "423": {
+      "$shared": "39251df769bb"
+     },
+     "428": {
+      "$shared": "64739d395719"
+     },
+     "429": {
+      "$shared": "e2dd4e61d086"
+     },
+     "500": {
+      "$shared": "5b711c5f4657"
+     },
+     "502": {
+      "$shared": "a1faeea6dfd2"
+     },
+     "503": {
+      "$shared": "85581811b787"
+     },
+     "504": {
+      "$shared": "665d7fddef51"
+     }
+    },
+    "tags": [
+     "People"
+    ],
+    "__originalOperationId": "Create a Person",
+    "security": [
+     {
+      "bearer-key": []
+     }
+    ]
+   }
+  },
+  "PUT /people/{personId}": {
+   "group": "People",
+   "title": "Update a Person",
+   "docPath": "/docs/api/v1/people/update-a-person",
+   "docVersion": 1,
+   "apiTitle": "People",
+   "operation": {
+    "method": "PUT",
+    "path": "/people/{personId}",
+    "operationId": "Update_a_Person",
+    "summary": "Update a Person",
+    "description": "Update details for a person, by ID.\n\nSpecify the person ID in the `personId` parameter in the URI. Only an admin can update a person details.\n\nInclude all details for the person. This action expects all user details to be present in the request. A common approach is to first [GET the person's details](/docs/api/v1/people/get-person-details), make changes, then PUT both the changed and unchanged values.\n\nAdmin users can include `Webex Calling` (BroadCloud) user details in the response by specifying `callingData` parameter as true.\n\nWhen doing attendee management, to update a user from host role to an attendee for a site append `#attendee` to the respective `siteUrl` and remove the meeting host license for this site from the license array.\nTo update a person from an attendee role to a host for a site, add the meeting license for this site in the meeting array, and remove that site from the `siteurl` parameter.\n\nTo remove the attendee privilege for a user on a meeting site, remove the `sitename#attendee` from the `siteUrl`s array. The `showAllTypes` parameter must be set to `true`.\n\n**NOTE**:\n\n* When assigning a Webex Calling license, either a telephone number or extension must already be assigned to the person or provided in the request payload.\n\n* When `callingData` is set to `true`, a Webex Calling license must be included in the `licenses` array.\n\n* The `locationId` can only be set when assigning a calling license to a user. It cannot be changed if a user is already an existing calling user.\n\n* The `extension` field should be used to update the Webex Calling extension for a person. The extension value should not include the location routing prefix. The `work_extension` type in the `phoneNumbers` object as seen in the response payload of [List People](/docs/api/v1/people/list-people) or [Get Person Details](/docs/api/v1/people/get-person-details), cannot be used to set the Webex Calling extension for a person.\n\n* When updating a user with multiple email addresses using a PUT request, ensure that the primary email address is listed first in the array. Note that the order of email addresses returned by a GET request is not guaranteed..\n\n* The People API is a combination of several microservices, each responsible for specific attributes of a person. As a result, a PUT request that returns an error response code may still have altered some values of the person's data. Therefore, it is recommended to perform a GET request after encountering an error to verify the current state of the resource. \n\n* Some licenses are implicitly assigned by the system and cannot be admin controlled. They are necessary for the baseline function of the Webex system. If you get an error about implicitly assigned licensed that cannot be removed, please ensure you have the corresponding license in your PUT request.\n\n* When assigning multiple licenses in a single request, the system will assign all valid and available licenses. If any requested licenses cannot be assigned, the operation will continue with the remaining licenses. As a result, it is possible that not all requested licenses are assigned to the user.",
+    "parameters": [
+     {
+      "name": "personId",
+      "in": "path",
+      "required": true,
+      "description": "A unique identifier for the person.",
+      "example": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS9mNWIzNjE4Ny1jOGRkLTQ3MjctOGIyZi1mOWM0NDdmMjkwNDY",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "callingData",
+      "in": "query",
+      "description": "Include Webex Calling user details in the response.",
+      "example": true,
+      "schema": {
+       "type": "boolean",
+       "default": false
+      }
+     },
+     {
+      "name": "showAllTypes",
+      "in": "query",
+      "description": "Include additional user data like `#attendee` role.",
+      "example": true,
+      "schema": {
+       "type": "boolean"
+      }
+     },
+     {
+      "name": "minResponse",
+      "in": "query",
+      "description": "Set to `true` to improve performance by omitting person details in the response. If unsuccessful the response will have optional error details.",
+      "example": true,
+      "schema": {
+       "type": "boolean",
+       "default": false
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "example": {
+        "emails": [
+         "john.andersen@example.com"
+        ],
+        "phoneNumbers": [
+         {
+          "type": "work",
+          "value": "408 526 7209"
+         }
+        ],
+        "extension": "133",
+        "locationId": "Y2lzY29zcGFyazovL3VzL0xPQ0FUSU9OLzYzNzE1",
+        "displayName": "John Andersen",
+        "firstName": "John",
+        "lastName": "Andersen",
+        "nickName": "John",
+        "avatar": "https://1efa7a94ed21783e352-c62266528714497a17239ececf39e9e2.ssl.cf1.rackcdn.com/V1~54c844c89e678e5a7b16a306bc2897b9~wx29yGtlTpilEFlYzqPKag==~1600",
+        "orgId": "Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi85NmFiYzJhYS0zZGNjLTExZTUtYTE1Mi1mZTM0ODE5Y2RjOWE",
+        "roles": [
+         "Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi"
+        ],
+        "licenses": [
+         "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi"
+        ],
+        "department": "Sales",
+        "manager": "John Duarte",
+        "managerId": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS80ZGEzYTI0OC05YjBhLTQxMDgtODU0NC1iNTQwMzEyZTU2M2E",
+        "title": "GM",
+        "addresses": [
+         {
+          "type": "work",
+          "country": "US",
+          "locality": "Milpitas",
+          "region": "California",
+          "streetAddress": "1099 Bird Ave.",
+          "postalCode": "99212"
+         }
+        ],
+        "siteUrls": [
+         "mysite.webex.com#attendee"
+        ],
+        "loginEnabled": true
+       },
+       "schema": {
+        "type": "object",
+        "required": [
+         "displayName"
+        ],
+        "properties": {
+         "emails": {
+          "type": "array",
+          "items": {
+           "type": "string",
+           "example": "john.andersen@example.com"
+          },
+          "description": "The email addresses of the person. Only one email address is allowed per person."
+         },
+         "phoneNumbers": {
+          "type": "array",
+          "items": {
+           "type": "object",
+           "properties": {
+            "type": {
+             "type": "string",
+             "enum": [
+              "work"
+             ],
+             "description": "The type of phone number. Valid values are 'work'"
+            },
+            "value": {
+             "type": "string",
+             "example": "408 526 7209",
+             "description": "The phone number."
+            }
+           }
+          },
+          "description": "Phone numbers for the person. Can only be set for Webex Calling. Needs a Webex Calling license."
+         },
+         "extension": {
+          "type": "string",
+          "example": "133",
+          "description": "Webex Calling extension of the person. This is only settable for a person with a Webex Calling license."
+         },
+         "locationId": {
+          "type": "string",
+          "example": "Y2lzY29zcGFyazovL3VzL0xPQ0FUSU9OLzYzNzE1",
+          "description": "The ID of the location for this person."
+         },
+         "displayName": {
+          "type": "string",
+          "example": "John Andersen",
+          "description": "The full name of the person."
+         },
+         "firstName": {
+          "type": "string",
+          "example": "John",
+          "description": "The first name of the person."
+         },
+         "lastName": {
+          "type": "string",
+          "example": "Andersen",
+          "description": "The last name of the person."
+         },
+         "nickName": {
+          "type": "string",
+          "example": "John",
+          "description": "The nickname of the person if configured. This cannot be overwritten and instead will be set to the firstName automatically in update requests."
+         },
+         "avatar": {
+          "type": "string",
+          "example": "https://1efa7a94ed21783e352-c62266528714497a17239ececf39e9e2.ssl.cf1.rackcdn.com/V1~54c844c89e678e5a7b16a306bc2897b9~wx29yGtlTpilEFlYzqPKag==~1600",
+          "description": "The URL to the person's avatar in PNG format."
+         },
+         "orgId": {
+          "type": "string",
+          "example": "Y2lzY29zcGFyazovL3VzL09SR0FOSVpBVElPTi85NmFiYzJhYS0zZGNjLTExZTUtYTE1Mi1mZTM0ODE5Y2RjOWE",
+          "description": "The ID of the organization to which this person belongs."
+         },
+         "roles": {
+          "type": "array",
+          "items": {
+           "type": "string",
+           "example": "Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL1JPTEUvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi"
+          },
+          "description": "An array of role strings representing the roles to which this admin user belongs."
+         },
+         "licenses": {
+          "type": "array",
+          "items": {
+           "type": "string",
+           "example": "Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWExNTItZmUzNDgxOWNkYzlh,Y2lzY29zcGFyazovL3VzL0xJQ0VOU0UvOTZhYmMyYWEtM2RjYy0xMWU1LWIyNjMtMGY0NTkyYWRlZmFi"
+          },
+          "description": "An array of license strings allocated to this person."
+         },
+         "department": {
+          "type": "string",
+          "example": "Sales",
+          "description": "The business department the user belongs to."
+         },
+         "manager": {
+          "type": "string",
+          "example": "John Duarte",
+          "description": "A manager identifier."
+         },
+         "managerId": {
+          "type": "string",
+          "example": "Y2lzY29zcGFyazovL3VzL1BFT1BMRS80ZGEzYTI0OC05YjBhLTQxMDgtODU0NC1iNTQwMzEyZTU2M2E",
+          "description": "Person ID of the manager."
+         },
+         "title": {
+          "type": "string",
+          "example": "GM",
+          "description": "The person's title."
+         },
+         "addresses": {
+          "type": "array",
+          "items": {
+           "type": "object",
+           "properties": {
+            "type": {
+             "type": "string",
+             "example": "work",
+             "description": "The type of address."
+            },
+            "country": {
+             "type": "string",
+             "example": "US",
+             "description": "The user's country."
+            },
+            "locality": {
+             "type": "string",
+             "example": "Milpitas",
+             "description": "The user's locality, often city."
+            },
+            "region": {
+             "type": "string",
+             "example": "California",
+             "description": "The user's region, often state."
+            },
+            "streetAddress": {
+             "type": "string",
+             "example": "1099 Bird Ave.",
+             "description": "The user's street."
+            },
+            "postalCode": {
+             "type": "string",
+             "example": "99212",
+             "description": "The user's postal or zip code."
+            }
+           }
+          },
+          "description": "A person's addresses."
+         },
+         "siteUrls": {
+          "type": "array",
+          "items": {
+           "type": "string",
+           "example": "mysite.webex.com#attendee"
+          },
+          "description": "One or several site names where this user has a role (host or attendee). Append `#attendee` to the site name to designate the attendee role on that site."
+         },
+         "loginEnabled": {
+          "type": "boolean",
+          "example": true,
+          "description": "Whether or not the user is allowed to use Webex. This property is only accessible if the authenticated user is an admin user for the person's organization."
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "$shared": "5526ea327583"
+     },
+     "204": {
+      "$shared": "2a1f530534f5"
+     },
+     "400": {
+      "$shared": "146c1964b246"
+     },
+     "401": {
+      "$shared": "b2df16913ace"
+     },
+     "403": {
+      "$shared": "a6799fe546cf"
+     },
+     "404": {
+      "$shared": "1ff877bfa646"
+     },
+     "405": {
+      "$shared": "6da9eec58eb1"
+     },
+     "409": {
+      "$shared": "b01af66968b3"
+     },
+     "410": {
+      "$shared": "10c5fa251a25"
+     },
+     "415": {
+      "$shared": "7e366c334e84"
+     },
+     "423": {
+      "$shared": "39251df769bb"
+     },
+     "428": {
+      "$shared": "64739d395719"
+     },
+     "429": {
+      "$shared": "e2dd4e61d086"
+     },
+     "500": {
+      "$shared": "5b711c5f4657"
+     },
+     "502": {
+      "$shared": "a1faeea6dfd2"
+     },
+     "503": {
+      "$shared": "85581811b787"
+     },
+     "504": {
+      "$shared": "665d7fddef51"
+     }
+    },
+    "tags": [
+     "People"
+    ],
+    "__originalOperationId": "Update a Person",
+    "security": [
+     {
+      "bearer-key": []
+     }
+    ]
+   }
+  }
+ }
+}

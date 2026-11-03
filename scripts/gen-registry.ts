@@ -25,8 +25,9 @@ export const REGISTRY_DIR = join(ROOT, "src", "registry");
 /**
  * Path prefixes the client knows how to fill. Spec paths are normalised onto these:
  * `{orgId}` becomes `{orgid}` and fixed placeholders (FIXED_PATH_PARAMS) become literals.
+ * `/v1` is the Webex API (webexapis.com), whose snapshot paths get the section's basePath.
  */
-export const PATH_PREFIXES = ["/organization/{orgid}", `/{orgid}/project/${FIXED_PATH_PARAMS.projectId}`];
+export const PATH_PREFIXES = ["/organization/{orgid}", `/{orgid}/project/${FIXED_PATH_PARAMS.projectId}`, "/v1"];
 
 const KIND_ORDER: OpKind[] = [
   "list",
@@ -172,7 +173,7 @@ export function buildRegistry(spec: SpecFile, overrides: ResourceOverride[] = RE
       ? (match.override.nameBySource?.[sourceKey] ?? match.override.rename?.[classified.name] ?? classified.name)
       : undefined;
     const schemaKey = name ? `${classified.kind}:${name}` : classified.kind;
-    const registryOp = toRegistryOperation(sourceKey, src, classified.kind, name, version, apiPath, match.override);
+    const registryOp = toRegistryOperation(spec, sourceKey, src, classified.kind, name, version, apiPath, match.override);
 
     const ops = byResource.get(match.override.key) ?? new Map<string, Candidate>();
     byResource.set(match.override.key, ops);
@@ -218,6 +219,12 @@ export function buildRegistry(spec: SpecFile, overrides: ResourceOverride[] = RE
     for (const schema of [get && responseSchema(spec, get.src), create && bodySchema(create.src), update && bodySchema(update.src)]) {
       for (const [prop, def] of Object.entries(propertiesOf(schema))) if (isObject(def) && def.readOnly === true) readOnly.add(prop);
     }
+    if (o.readOnlyFromBody) {
+      // Fields the record has but the PUT body does not take (e.g. created, status).
+      if (!get || !update) throw new Error(`${o.key}: readOnlyFromBody needs get and update operations`);
+      const writable = new Set(Object.keys(propertiesOf(bodySchema(update.src))));
+      for (const prop of Object.keys(propertiesOf(responseSchema(spec, get.src)))) if (!writable.has(prop)) readOnly.add(prop);
+    }
     const createSchema = create ? bodySchema(create.src) : undefined;
     const required = isObject(createSchema) && Array.isArray(createSchema.required) ? createSchema.required.map(String) : [];
     const anySrc = candidates[0]!.src;
@@ -234,6 +241,10 @@ export function buildRegistry(spec: SpecFile, overrides: ResourceOverride[] = RE
       updateSemantics,
       readOnlyFields: [...readOnly].sort(cmp),
       requiredOnCreate: required,
+      ...(o.volatileFields ? { volatileFields: o.volatileFields } : {}),
+      ...(o.nameRefs ? { nameRefs: o.nameRefs } : {}),
+      ...(o.createLookup ? { createLookup: o.createLookup } : {}),
+      ...(o.createWarnings ? { createWarnings: o.createWarnings } : {}),
       operations: candidates.map((c) => c.op),
     });
     schemas[o.key] = {
@@ -264,6 +275,7 @@ export function buildRegistry(spec: SpecFile, overrides: ResourceOverride[] = RE
 }
 
 function toRegistryOperation(
+  spec: SpecFile,
   source: string,
   src: SpecOperation,
   kind: OpKind,
@@ -275,6 +287,9 @@ function toRegistryOperation(
   const op = src.operation;
   const body = bodySchema(src);
   const qp = queryParams(src, false).map((p) => (override.queryEnums?.[p.name] ? { ...p, enum: override.queryEnums[p.name] } : p));
+  // Webex lists page with a cursor in the Link header; the cursor goes back as a query param.
+  const cursor = kind === "list" && hasLinkHeader(spec, src) && !qp.some((p) => p.name === "cursor");
+  if (cursor) qp.push({ name: "cursor", type: "string", required: false });
   const opKey = name ? `${kind}:${name}` : kind;
   const sendDefaults = override.sendDefaults?.[opKey];
   for (const param of Object.keys(sendDefaults ?? {})) {
@@ -294,7 +309,7 @@ function toRegistryOperation(
     hasBody: body !== undefined,
     ...(body !== undefined ? { bodyEncoding: hasBinary(body) ? "multipart" : "json" } : {}),
     ...(hasBinary(body) ? { multipartParts: multipartParts(source, body) } : {}),
-    paginated: qp.some((p) => p.name === "page") && qp.some((p) => p.name === "pageSize" || p.name === "size"),
+    paginated: cursor || (qp.some((p) => p.name === "page") && qp.some((p) => p.name === "pageSize" || p.name === "size")),
     summary: cleanText(op.summary ?? src.title),
     source,
   } as RegistryOperation;
@@ -346,6 +361,12 @@ function responseSchema(spec: SpecFile, src: SpecOperation): unknown {
     if (first?.schema !== undefined) return first.schema;
   }
   return undefined;
+}
+
+function hasLinkHeader(spec: SpecFile, src: SpecOperation): boolean {
+  let r = src.operation.responses["200"] as Record<string, unknown> | undefined;
+  if (r && typeof r.$shared === "string") r = spec.sharedResponses[r.$shared] as Record<string, unknown> | undefined;
+  return isObject(r?.headers) && Object.keys(r.headers).some((h) => h.toLowerCase() === "link");
 }
 
 function propertiesOf(schema: unknown): Record<string, unknown> {
@@ -459,7 +480,20 @@ export function diffAgainstDisk(files: Map<string, string>, dir = REGISTRY_DIR):
 /** Loads one snapshot, or all of them (one per fetch-spec section) merged into one. */
 export function loadSpec(path?: string): SpecFile {
   if (path) return JSON.parse(readFileSync(path, "utf8")) as SpecFile;
-  return mergeSpecs(SECTIONS.map((s) => JSON.parse(readFileSync(specFile(s.name), "utf8")) as SpecFile));
+  return mergeSpecs(
+    SECTIONS.map((s) => withBasePath(JSON.parse(readFileSync(specFile(s.name), "utf8")) as SpecFile, s.basePath)),
+  );
+}
+
+/** Prefixes every operation path (and key) with the section's basePath, e.g. /people → /v1/people. */
+export function withBasePath(spec: SpecFile, basePath: string | undefined): SpecFile {
+  if (!basePath) return spec;
+  const operations: SpecFile["operations"] = {};
+  for (const o of Object.values(spec.operations)) {
+    const path = `${basePath}${o.operation.path}`;
+    operations[`${o.operation.method} ${path}`] = { ...o, operation: { ...o.operation, path } };
+  }
+  return { ...spec, operations };
 }
 
 /** Merges snapshots; operation keys ("METHOD path") must be unique across them. */

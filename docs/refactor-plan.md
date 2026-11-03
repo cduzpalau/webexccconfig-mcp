@@ -377,6 +377,75 @@ including:
 - a skill batch with one deletable, one referenced (412 naming both profiles) and one missing id
 - a bulk delete of two flow copies
 
+## h. v2.3: Webex people (create, update, delete) on a second API
+Request: create, update and delete Webex users (People API, developer.webex.com/admin/docs/api/v1/people)
+with the same architecture. Licenses are given on create and update; without them a person is created with
+none requested. Bulk delete is enough for now.
+
+**Sources.** The admin docs page embeds the specs the same way the Contact Center pages do, under
+"API Reference (Admin)" → "Webex Admin: All APIs". New snapshot `apireference/openapi/webex-admin.json` with
+the People, Licenses and Roles groups (6 + 3 + 2 operations).
+
+**Verified on the eu2 sandbox (2026-11-03, `wxcc_ext_probe_*` people, deleted afterwards):**
+- Host `https://webexapis.com/v1`, the same for every region; the WEBEX_TOKEN used for Contact Center works.
+  The token's org (`/people/me` → `orgId`, base64 of `ciscospark://us/ORGANIZATION/<uuid>`) is the WxCC org id.
+- List: `{items, notFoundIds}`, page size `max`, next page as a `cursor` in the `Link: <…>; rel="next"` header.
+- Errors: `{message, errors:[{description}], trackingId}`, e.g. 404 "Person not found".
+- Create without `licenses`, and with `licenses: []`, both assigned the org's 4 default free licenses
+  (Basic Space Meetings, Basic Messaging, Free screen share, Call on Webex). The API cannot create a person
+  with no licenses at all.
+- PUT is a full replace. Removing all licenses returned **206** with one license still assigned and no error
+  detail: a 206 means "partly applied".
+- Every person gets a Contact Center `user` record at once (`contactCenterEnabled: false`); deleting the
+  person removes it. Delete returns 204 in about 2 s and the person reads as 404 right after.
+- Two GETs of the same person were byte-identical (no presence fields for these users), but the spec lists
+  `status` and `lastActivity`, which change with presence.
+
+| Area | Contact Center | People API | 2.3 |
+|---|---|---|---|
+| Host | `api.wxcc-<region>.cisco.com` | `webexapis.com` | `webex_base_url` (default `https://webexapis.com`); the client picks the host from the path prefix (`/v1/…` = Webex) |
+| Spec paths | `/organization/{orgid}/…` | `/people/…` | fetch-spec stores them as published; the generator prefixes the section's `basePath` `/v1` |
+| Org | path segment | implicit (token's org) | before the first Webex call, the token's org must equal `org_id`, or every Webex call is refused |
+| Paging | `page`/`pageSize`, `{meta, data}` | `max` + `cursor` | generator adds a `cursor` query param to ops whose 200 has a `Link` header; list maps `pageSize` → `max`; results carry `meta.nextCursor` |
+| Errors | `error.message[]` | `message`, `errors[]` | client parses both; 403 hints `spark-admin:people_write` |
+| Confirm | `version` / content hash | `lastModified` + content | override `volatileFields` (`status`, `lastActivity`) are dropped from reads, so presence cannot make a confirm stale; read-only fields stripped from PUT |
+| Partial writes | not documented | 206 on PUT; failed POST may still create | update re-reads after 206 or an error and lists the requested fields that did not take; create looks the person up by email after an error |
+| Licenses | — | ids | override `nameRefs`: `licenses`/`roles` accept names or ids; the dry-run resolves names, shows `name (id)`, and warns when a license has no free units |
+| Self | — | `/people/me` | view `me`; deleting the token's own person is refused (single and bulk) |
+
+**Resources:** `person` (aliases `people`, `webex-user`; list, get, create, update, delete, view `me`),
+`license` and `role` (list, get). All in a new toolset `people`. `PATCH /licenses/users` is excluded:
+licenses change through the person's `licenses` field.
+
+**Create without licenses.** Because the API always adds the org's default licenses, a create without
+`licenses` warns that the org's default licenses will be assigned. It does not try to remove them afterwards.
+
+**Acceptance:**
+- typecheck, unit tests, registry check pass; read-write tool list stays under 8 KB (no new tool params:
+  `cursor` travels in `query`).
+- unit tests: host selection, Webex error shape, Link cursor, org check, name resolution (ok, unknown,
+  ambiguous), volatile fields, 206 report, create lookup after error, self-delete guard.
+- live (sandbox, throwaway mailboxes from throwawaymail.app): create a person without licenses → get →
+  update with a Contact Center license by name → update removing it → bulk delete two people plus a missing
+  id; leftovers named `wxcc_ext_smoke_*` are swept.
+
+**Found while building:**
+- The first full live run failed with `stale version` on the license update: Webex moves `lastModified`
+  about 2 s after a create, while the person is provisioned. Every field of the person that changes on its
+  own is read-only (not in the PUT body), so `volatileFields` now also holds `lastModified`, `sipAddresses`
+  and `invitePending`: the confirm pins only writable fields.
+- The `displayName` and `email` searches use an index that lagged creates and deletes by minutes (a search
+  still returned two people already deleted; `GET /people/{id}` said 404). The live sweep lists every person
+  and filters locally; the README tells callers to read by id.
+- `license` and `role` lists have no paging params at all; the list tool now ignores `pageSize` there instead
+  of refusing it.
+- The spec documents the `Link` header on `GET /licenses/{licenseId}` instead of the license list. The
+  generator only adds `cursor` to list ops, so it lands on `GET /people` alone.
+
+**Result (2026-11-03):** typecheck clean; `npm test` passes 237 tests; the registry has 37 resources and 269
+operations; the read-write tool list is 8,172 bytes (under 8 KB); the live suite passes 11 of 11 on the eu2
+sandbox, and the people test passed twice more on its own.
+
 ## e. Open questions
 None at the moment. Anything new found during a phase gets added here.
 

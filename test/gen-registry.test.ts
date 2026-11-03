@@ -10,6 +10,7 @@ import {
   normalisePath,
   parsePath,
   render,
+  withBasePath,
 } from "../scripts/gen-registry.js";
 import { RESOURCES as OVERRIDES } from "../scripts/registry-overrides.js";
 import { DEFAULT_DEFER_TO_OFFICIAL, TOOLSETS } from "../src/config.js";
@@ -33,7 +34,8 @@ describe("parsePath", () => {
     expect(parsePath(`${P}/v2/flows/{id}:export`)).toEqual({ segments: ["flows", "{id}", "export"], version: 2 });
     expect(parsePath(`${P}/v2/flows:import`)).toEqual({ segments: ["flows", "import"], version: 2 });
     expect(parsePath(`${P}/flows`)).toEqual({ segments: ["flows"], version: 1 });
-    expect(() => parsePath("/v1/{orgId}/functions")).toThrow(/unexpected path/);
+    expect(() => parsePath("/v2/{orgId}/functions")).toThrow(/unexpected path/);
+    expect(parsePath("/v1/people/{id}")).toEqual({ segments: ["people", "{id}"], version: 1 });
   });
 });
 
@@ -263,6 +265,69 @@ describe("buildRegistry with an allowlisted flows resource", () => {
   });
 });
 
+describe("Webex API sections", () => {
+  const op = (method: string, path: string, responses: Record<string, unknown>): [string, SpecOperation] => [
+    `${method} ${path}`,
+    {
+      group: "People",
+      title: path,
+      docPath: "/docs/api/v1/people/x",
+      docVersion: 1,
+      apiTitle: "People",
+      operation: { method: method as "GET", path, operationId: `${method}${path}`, summary: `${method} people`, responses },
+    },
+  ];
+  const ok = { "200": { description: "OK" } };
+  const person = { type: "object", properties: { id: {}, displayName: {}, created: {}, status: {} } };
+  const raw: SpecFile = {
+    _source: { url: "x", fetchedAt: "x", section: "admin", operationCount: 4 },
+    apis: { People: "People" },
+    sharedResponses: { s1: { description: "OK", headers: { Link: { schema: { type: "string" } } } } },
+    operations: Object.fromEntries([
+      op("GET", "/people", { "200": { $shared: "s1" } }),
+      op("GET", "/people/{personId}", { "200": { description: "OK", content: { "application/json": { schema: person } } } }),
+      op("PUT", "/people/{personId}", ok),
+      op("GET", "/people/me", ok),
+    ]),
+  };
+  raw.operations["PUT /people/{personId}"]!.operation.requestBody = {
+    content: { "application/json": { schema: { type: "object", properties: { displayName: {} } } } },
+  };
+
+  it("prefixes the section basePath to paths and keys", () => {
+    const spec = withBasePath(raw, "/v1");
+    expect(Object.keys(spec.operations).sort()).toEqual([
+      "GET /v1/people",
+      "GET /v1/people/me",
+      "GET /v1/people/{personId}",
+      "PUT /v1/people/{personId}",
+    ]);
+    expect(withBasePath(raw, undefined)).toBe(raw);
+  });
+
+  it("adds a cursor to lists with a Link header, a me view, and read-only fields from the PUT body", () => {
+    const override: ResourceOverride = {
+      key: "person",
+      base: "people",
+      displayName: "Person",
+      toolset: "people",
+      idParam: "personId",
+      readOnlyFromBody: true,
+      volatileFields: ["status"],
+    };
+    const [entry] = buildRegistry(withBasePath(raw, "/v1"), [override]).entries;
+    const list = entry!.operations.find((o) => o.kind === "list")!;
+    expect(list.path).toBe("/v1/people");
+    expect(list.queryParams).toEqual([{ name: "cursor", type: "string", required: false }]);
+    expect(list.paginated).toBe(true);
+    expect(entry!.operations.find((o) => o.kind === "view")).toMatchObject({ name: "me", path: "/v1/people/me" });
+    expect(entry!.operations.find((o) => o.kind === "get")!.queryParams).toEqual([]);
+    expect(entry!.readOnlyFields).toEqual(expect.arrayContaining(["id", "created", "status"]));
+    expect(entry!.readOnlyFields).not.toContain("displayName");
+    expect(entry!.volatileFields).toEqual(["status"]);
+  });
+});
+
 describe("committed registry", () => {
   it("matches what the generator produces from the committed spec (run npm run gen:registry)", () => {
     expect(diffAgainstDisk(render(buildRegistry(loadSpec())))).toEqual([]);
@@ -280,7 +345,8 @@ describe("committed registry", () => {
         for (const op of r.operations) expect(op.pathParams).toContain(r.parent.param);
       }
       for (const op of r.operations) {
-        expect(op.path.startsWith("/organization/{orgid}/") || op.path.startsWith("/{orgid}/project/5e5c9ad6d61f870d6d778c1b/")).toBe(true);
+        const prefixes = ["/organization/{orgid}/", "/{orgid}/project/5e5c9ad6d61f870d6d778c1b/", "/v1/"];
+        expect(prefixes.some((p) => op.path.startsWith(p)), op.path).toBe(true);
         expect(op.kind === "view" || op.kind === "action" ? op.name : undefined).toBe(op.name);
       }
     }
@@ -327,7 +393,7 @@ describe("committed registry", () => {
   it("covers every override except the deprecated-only ones", () => {
     const keys = new Set(RESOURCES.map((r) => r.key));
     expect(OVERRIDES.filter((o) => !keys.has(o.key)).map((o) => o.key)).toEqual([]);
-    expect(RESOURCES).toHaveLength(34);
+    expect(RESOURCES).toHaveLength(37);
   });
 
   it("loads a schema doc lazily", async () => {

@@ -3854,6 +3854,78 @@ export const RESOURCES: readonly RegistryEntry[] = [
     ]
   },
   {
+    "key": "license",
+    "displayName": "Webex License",
+    "description": "Licenses of the Webex organization (Webex API), with total and consumed units. Assign them through a person's licenses field, by name or id.",
+    "aliases": [
+      "licenses",
+      "webex-license"
+    ],
+    "toolset": "people",
+    "singleton": false,
+    "idField": "id",
+    "updateSemantics": "none",
+    "readOnlyFields": [
+      "createdTime",
+      "lastUpdatedTime"
+    ],
+    "requiredOnCreate": [],
+    "operations": [
+      {
+        "kind": "list",
+        "method": "GET",
+        "path": "/v1/licenses",
+        "apiVersion": 1,
+        "pathParams": [],
+        "queryParams": [
+          {
+            "name": "orgId",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "hasBody": false,
+        "paginated": false,
+        "summary": "List Licenses",
+        "source": "GET /v1/licenses"
+      },
+      {
+        "kind": "get",
+        "method": "GET",
+        "path": "/v1/licenses/{id}",
+        "apiVersion": 1,
+        "pathParams": [
+          "id"
+        ],
+        "queryParams": [
+          {
+            "name": "includeAssignedTo",
+            "type": "string",
+            "required": false,
+            "enum": [
+              "user"
+            ]
+          },
+          {
+            "name": "next",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "limit",
+            "type": "string",
+            "required": false,
+            "default": "300"
+          }
+        ],
+        "hasBody": false,
+        "paginated": false,
+        "summary": "Get License Details",
+        "source": "GET /v1/licenses/{licenseId}"
+      }
+    ]
+  },
+  {
     "key": "multimedia-profile",
     "displayName": "Multimedia Profile",
     "description": "A Multimedia Profile specifies the number of each type of media, such as email, chat, social channels, or telephone, that an agent can handle simultaneously.",
@@ -4673,6 +4745,246 @@ export const RESOURCES: readonly RegistryEntry[] = [
     ]
   },
   {
+    "key": "person",
+    "displayName": "Webex Person",
+    "description": "Webex users (Webex People API). Create, update and delete people; licenses and roles take names or ids. Every person gets a Contact Center user record (resource user), removed when the person is deleted; a Contact Center license makes them an agent. Creates always get the org's default licenses as well. update replaces the record (read, merge, PUT); some fields may not apply, and the result says which.",
+    "aliases": [
+      "people",
+      "webex-user",
+      "webex-person"
+    ],
+    "toolset": "people",
+    "singleton": false,
+    "idField": "id",
+    "updateSemantics": "put-full-replace",
+    "readOnlyFields": [
+      "created",
+      "createdTime",
+      "id",
+      "invitePending",
+      "lastActivity",
+      "lastModified",
+      "lastUpdatedTime",
+      "sipAddresses",
+      "status",
+      "timezone",
+      "type",
+      "xmppFederationJid"
+    ],
+    "requiredOnCreate": [
+      "emails"
+    ],
+    "volatileFields": [
+      "status",
+      "lastActivity",
+      "lastModified",
+      "sipAddresses",
+      "invitePending"
+    ],
+    "nameRefs": {
+      "licenses": {
+        "resource": "license",
+        "field": "name"
+      },
+      "roles": {
+        "resource": "role",
+        "field": "name"
+      }
+    },
+    "createLookup": {
+      "query": "email",
+      "field": "emails"
+    },
+    "createWarnings": {
+      "licenses": "no licenses given: the person gets only the org's default licenses (pass licenses by name to add more)"
+    },
+    "operations": [
+      {
+        "kind": "list",
+        "method": "GET",
+        "path": "/v1/people",
+        "apiVersion": 1,
+        "pathParams": [],
+        "queryParams": [
+          {
+            "name": "email",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "displayName",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "id",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "orgId",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "roles",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "callingData",
+            "type": "boolean",
+            "required": false,
+            "default": "false"
+          },
+          {
+            "name": "locationId",
+            "type": "string",
+            "required": false
+          },
+          {
+            "name": "max",
+            "type": "string",
+            "required": false,
+            "default": "100"
+          },
+          {
+            "name": "excludeStatus",
+            "type": "boolean",
+            "required": false,
+            "default": "false"
+          },
+          {
+            "name": "cursor",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "sendDefaults": {
+          "excludeStatus": "true"
+        },
+        "hasBody": false,
+        "paginated": true,
+        "summary": "List People",
+        "source": "GET /v1/people"
+      },
+      {
+        "kind": "get",
+        "method": "GET",
+        "path": "/v1/people/{id}",
+        "apiVersion": 1,
+        "pathParams": [
+          "id"
+        ],
+        "queryParams": [
+          {
+            "name": "callingData",
+            "type": "boolean",
+            "required": false,
+            "default": "false"
+          }
+        ],
+        "hasBody": false,
+        "paginated": false,
+        "summary": "Get Person Details",
+        "source": "GET /v1/people/{personId}"
+      },
+      {
+        "kind": "create",
+        "method": "POST",
+        "path": "/v1/people",
+        "apiVersion": 1,
+        "pathParams": [],
+        "queryParams": [
+          {
+            "name": "callingData",
+            "type": "boolean",
+            "required": false,
+            "default": "false"
+          },
+          {
+            "name": "minResponse",
+            "type": "boolean",
+            "required": false,
+            "default": "false"
+          }
+        ],
+        "hasBody": true,
+        "bodyEncoding": "json",
+        "paginated": false,
+        "summary": "Create a Person",
+        "source": "POST /v1/people"
+      },
+      {
+        "kind": "update",
+        "method": "PUT",
+        "path": "/v1/people/{id}",
+        "apiVersion": 1,
+        "pathParams": [
+          "id"
+        ],
+        "queryParams": [
+          {
+            "name": "callingData",
+            "type": "boolean",
+            "required": false,
+            "default": "false"
+          },
+          {
+            "name": "showAllTypes",
+            "type": "boolean",
+            "required": false
+          },
+          {
+            "name": "minResponse",
+            "type": "boolean",
+            "required": false,
+            "default": "false"
+          }
+        ],
+        "hasBody": true,
+        "bodyEncoding": "json",
+        "paginated": false,
+        "summary": "Update a Person",
+        "source": "PUT /v1/people/{personId}"
+      },
+      {
+        "kind": "delete",
+        "method": "DELETE",
+        "path": "/v1/people/{id}",
+        "apiVersion": 1,
+        "pathParams": [
+          "id"
+        ],
+        "queryParams": [],
+        "hasBody": false,
+        "paginated": false,
+        "summary": "Delete a Person",
+        "source": "DELETE /v1/people/{personId}"
+      },
+      {
+        "kind": "view",
+        "name": "me",
+        "method": "GET",
+        "path": "/v1/people/me",
+        "apiVersion": 1,
+        "pathParams": [],
+        "queryParams": [
+          {
+            "name": "callingData",
+            "type": "boolean",
+            "required": false,
+            "default": "false"
+          }
+        ],
+        "hasBody": false,
+        "paginated": false,
+        "summary": "Get My Own Details",
+        "source": "GET /v1/people/me"
+      }
+    ]
+  },
+  {
     "key": "resource-collection",
     "displayName": "Resource Collection",
     "description": "A Resource Collection is a grouping of contact center resource under the control of your enterprise. For example, Credit card resource collection contains all the resource related to Credit card department.",
@@ -4843,6 +5155,52 @@ export const RESOURCES: readonly RegistryEntry[] = [
         "paginated": false,
         "summary": "Update resource with default resource collection",
         "source": "POST /organization/{orgid}/resource-collection/update-resource"
+      }
+    ]
+  },
+  {
+    "key": "role",
+    "displayName": "Webex Admin Role",
+    "description": "Admin roles of the Webex organization (Webex API). Assign them through a person's roles field.",
+    "aliases": [
+      "roles",
+      "webex-role"
+    ],
+    "toolset": "people",
+    "singleton": false,
+    "idField": "id",
+    "updateSemantics": "none",
+    "readOnlyFields": [
+      "createdTime",
+      "lastUpdatedTime"
+    ],
+    "requiredOnCreate": [],
+    "operations": [
+      {
+        "kind": "list",
+        "method": "GET",
+        "path": "/v1/roles",
+        "apiVersion": 1,
+        "pathParams": [],
+        "queryParams": [],
+        "hasBody": false,
+        "paginated": false,
+        "summary": "List Roles",
+        "source": "GET /v1/roles"
+      },
+      {
+        "kind": "get",
+        "method": "GET",
+        "path": "/v1/roles/{id}",
+        "apiVersion": 1,
+        "pathParams": [
+          "id"
+        ],
+        "queryParams": [],
+        "hasBody": false,
+        "paginated": false,
+        "summary": "Get Role Details",
+        "source": "GET /v1/roles/{roleId}"
       }
     ]
   },
@@ -6525,12 +6883,15 @@ export const SCHEMA_LOADERS: Record<string, () => Promise<{ default: ResourceSch
   "flow": () => import("./schemas/flow.js"),
   "global-variable": () => import("./schemas/global-variable.js"),
   "holiday-list": () => import("./schemas/holiday-list.js"),
+  "license": () => import("./schemas/license.js"),
   "multimedia-profile": () => import("./schemas/multimedia-profile.js"),
   "organization-setting": () => import("./schemas/organization-setting.js"),
   "outdial-ani": () => import("./schemas/outdial-ani.js"),
   "outdial-ani-entry": () => import("./schemas/outdial-ani-entry.js"),
   "overrides": () => import("./schemas/overrides.js"),
+  "person": () => import("./schemas/person.js"),
   "resource-collection": () => import("./schemas/resource-collection.js"),
+  "role": () => import("./schemas/role.js"),
   "site": () => import("./schemas/site.js"),
   "skill": () => import("./schemas/skill.js"),
   "skill-profile": () => import("./schemas/skill-profile.js"),

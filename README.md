@@ -1,6 +1,6 @@
 # webexccconfig-mcp
 
-**Version 2.2.0** · [Changelog](#changelog)
+**Version 2.3.0** · [Changelog](#changelog)
 
 > [!WARNING]
 > **Unsupported. Use at your own risk.**
@@ -20,12 +20,13 @@
 - **webexccconfig-mcp** is a local **stdio** server. It runs on your machine with a **personal access token** and
   is built for **configuring a contact center programmatically**: queues, teams, skills, skill profiles, users,
   user and desktop profiles, sites, global variables, audio prompts and more. For flows it adds only what the
-  official server lacks: list, export, import, unlock and delete.
+  official server lacks: list, export, import, unlock and delete. It also creates, updates and deletes the
+  **Webex people** behind agents, with their licenses (Webex People API).
 
 The two can run side by side. This server fills the configuration gaps and defers what the official server owns.
 
 This server exposes nine generic tools, not one tool per API call, over a registry generated from Cisco's
-published OpenAPI specs: 34 resource types and 259 operations. Writes are dry-run by default, need explicit confirmation,
+published OpenAPI specs: 37 resource types and 269 operations. Writes are dry-run by default, need explicit confirmation,
 are checked for stale versions, snapshot the previous state and are logged.
 
 - **Transport:** stdio only (no HTTP server).
@@ -40,6 +41,7 @@ are checked for stale versions, snapshot the previous state and are logged.
 - [Tools](#tools)
 - [How writes work](#how-writes-work)
 - [Flows: list, export, import, unlock, delete](#flows-list-export-import-unlock-delete)
+- [Webex people and licenses](#webex-people-and-licenses)
 - [Audio uploads](#audio-uploads)
 - [Operation log and snapshots](#operation-log-and-snapshots)
 - [Resources](#resources)
@@ -50,6 +52,9 @@ are checked for stale versions, snapshot the previous state and are logged.
 ## Requirements
 - Node.js 20.12 or later.
 - A Webex Contact Center organization and an access token with `cjp:config_read` (and `cjp:config_write` for writes).
+- For Webex people, licenses and roles: a token of a Webex full or user administrator of the same organization
+  (`spark-admin:people_read`, `spark-admin:licenses_read`, `spark-admin:roles_read`, and
+  `spark-admin:people_write` for writes). A developer.webex.com personal token of an admin has them.
 - For audio uploads only: `ffmpeg`. Text-to-speech also needs macOS `say` or a configured alternative (see [Audio uploads](#audio-uploads)).
 
 ## Install
@@ -72,7 +77,7 @@ Settings come from a YAML file plus environment variables.
    region: us1                 # us1, eu1, eu2, anz1, ca1, jp1, sg1 (extend with `regions:`)
    org_id: <your org id>
    mode: read-only             # or read-write
-   # toolsets: [routing, agent, telephony, media, data, schedule, org, digital, ai, flow]
+   # toolsets: [routing, agent, telephony, media, data, schedule, org, digital, ai, flow, people]
    # defer_to_official: [entry-point, business-hours, dial-plan, dial-number]
    # export_dir: ~/.wxcc-ext/exports
    ```
@@ -97,6 +102,10 @@ environment take precedence over it.
 
 **Base URL.** It is derived as `https://api.wxcc-<region>.cisco.com`. `base_url` overrides it, and must be the
 bare host: a `/v1` suffix is rejected, because API paths carry their own version.
+
+**Webex API host.** People, licenses and roles use the Webex API, `https://webexapis.com`, the same for every
+region. `webex_base_url` (or `WEBEX_API_BASE_URL`) overrides it, e.g. for FedRAMP organizations; it is also the
+bare host, without `/v1`.
 
 **Toolsets and defer list.** `toolsets` limits which resource groups are visible. Any resource (key or alias)
 listed in `defer_to_official` is hidden and refused with `deferred by config`. Use the defer list for whatever
@@ -202,7 +211,7 @@ delete. To leave flows entirely to the official server, add `flow` to `defer_to_
 |---|---|---|
 | `wxcc-ext-list-resource-types` | always | Resource types available with this config, with their operations, views and actions. Start here. |
 | `wxcc-ext-describe-resource` | always | One resource's fields, required fields, operations and query params. `operation` returns that operation's request and response schema. |
-| `wxcc-ext-list` | always | List records. Takes `filter` (RSQL, e.g. `name=="Sales"`), `search`, `attributes`, `sort` and 0-based `page`/`pageSize`. `view` runs a named list view; `parentId` is for child resources. |
+| `wxcc-ext-list` | always | List records. Takes `filter` (RSQL, e.g. `name=="Sales"`), `search`, `attributes`, `sort` and 0-based `page`/`pageSize`. `view` runs a named list view; `parentId` is for child resources. Webex lists (people) page with a cursor instead: the result's `meta.nextCursor` goes back as `query: { cursor }`. |
 | `wxcc-ext-get` | always | One record by id. Singletons need no id. `view: "references"` shows what uses the record; other views come from describe-resource. `saveTo` writes the full response to a new local `.json` file instead of returning it. |
 | `wxcc-ext-create` | read-write | Create a record (`body`, or `bodyFile` to read it from a local `.json` file). Audio, greeting and channel resources also take `file`. |
 | `wxcc-ext-update` | read-write | Change fields (`changes`). Uses PATCH where the API has it, otherwise reads, merges and PUTs. Lists are replaced whole. |
@@ -313,6 +322,58 @@ the current draft.
 project id as fixed for all organizations. Reads need `cjp:config_read`; import, unlock and delete need
 `cjp:config_write` and the Full Admin or Contact Center Service Admin role.
 
+## Webex people and licenses
+The `person` resource (toolset `people`, aliases `people`, `webex-user`) creates, updates and deletes Webex
+users with the Webex People API. `license` and `role` list the organization's licenses (with total and used
+units) and admin roles.
+
+| Task | Tool call |
+|---|---|
+| Find people | `wxcc-ext-list` `{ resource: "person", query: { email: "ann@example.com" } }` (or `displayName`: starts with) |
+| Read one | `wxcc-ext-get` `{ resource: "person", id }` |
+| The token's own person | `wxcc-ext-get` `{ resource: "person", view: "me" }` |
+| Licenses and free units | `wxcc-ext-list` `{ resource: "license" }` |
+| Create an agent | `wxcc-ext-create` `{ resource: "person", body: { emails: ["ann@example.com"], displayName: "Ann Agent", firstName: "Ann", lastName: "Agent", licenses: ["Contact Center Premium Agent"] } }` |
+| Change licenses | `wxcc-ext-update` `{ resource: "person", id, changes: { licenses: ["Basic Messaging", "Contact Center Standard Agent"] } }` |
+| Delete | `wxcc-ext-delete` `{ resource: "person", id }`, or `wxcc-ext-bulk` with `operation: "delete"` |
+
+**Licenses and roles by name.** `licenses` and `roles` take names (any case) or ids. The dry-run shows the ids
+it will send, with names, under `refs` (`now` and `after` on updates), and warns when a newly added license
+has no free units. An unknown name lists the known ones; a name shared by several licenses (one per
+subscription) asks for the id.
+
+**Creates.** Pass `licenses` to license the person. Without it, the person is created with no licenses
+requested, but Webex always adds the organization's default licenses (on the sandbox: Basic Space Meetings,
+Basic Messaging, Free screen share, Call on Webex); even `licenses: []` gets them. The dry-run warns about it.
+The People API can create a person even when it answers with an error (for example a 400 on calling data).
+After a failed create, the server looks the person up by email, and the error then says the person exists, so
+you fix it with `wxcc-ext-update` instead of creating it twice.
+
+**Updates.** The People API replaces the whole record, so the server reads the person, merges your changes and
+PUTs everything back; read-only fields (`created`, `status`, `sipAddresses`, …) are left out. `licenses` and
+`roles` replace the list: include the ones to keep. Webex applies an update part by part:
+- an answer of **206** means some fields did not change; the server re-reads the person and the result lists them
+  under `notApplied` (on the sandbox, removing the last default licenses returns 206 and keeps one)
+- after an error, the server re-reads the person and says which requested fields changed anyway
+
+Presence and fields Webex updates on its own (`status`, `lastActivity`, `lastModified`, `sipAddresses`,
+`invitePending`) do not count as a change between the dry-run and the apply, and are not in snapshots.
+
+**Deletes.** Deleting a person is permanent: a new person with the same email gets a new id. The token's own
+person is never deleted (refused on `wxcc-ext-delete`, skipped by bulk delete).
+
+**Contact Center.** Every person gets a Contact Center `user` record right away (`contactCenterEnabled: false`).
+Its `ciUserId` is the uuid inside the person id (the id is base64 of `ciscospark://us/PEOPLE/<uuid>`), so
+`wxcc-ext-get` `{ resource: "user", view: "by-ci-user-id", id: "<uuid>" }` finds it. A Contact Center license
+makes the person an agent, which can take a while to show on the user. Deleting the person removes the user.
+
+**Org check.** The Webex API acts on the token's own organization. Before the first Webex call, the server reads
+`/v1/people/me` and refuses every Webex call if that organization is not `org_id`, so a partner administrator's
+token never lists or changes people in the wrong organization.
+
+**Search lag.** `email` and `displayName` searches use an index that can lag creates and deletes by minutes. Read
+by id when you need the current state.
+
 ## Audio uploads
 `wxcc-ext-create` and `wxcc-ext-update` on `audio-file` and `agent-personal-greeting` take:
 - `file: { "path": "/local/prompt.mp3" }`: any format ffmpeg can read, or
@@ -355,7 +416,7 @@ Snapshots are never overwritten or cleaned up automatically. To roll back by han
 the fields from the snapshot.
 
 ## Resources
-34 resource types, grouped into toolsets. `*` = deferred by default.
+37 resource types, grouped into toolsets. `*` = deferred by default.
 
 | Toolset | Resources |
 |---|---|
@@ -369,6 +430,7 @@ the fields from the snapshot.
 | `digital` | asset, channel |
 | `ai` | ai-feature, ai-feature-auto-csat-question |
 | `flow` | flow (list, get, export, import, unlock, delete only) |
+| `people` | person, license, role (Webex API, `webexapis.com`) |
 
 Dial plans are not in the registry: every dial-plan operation is deprecated. Deprecated API operations are never
 exposed.
@@ -385,8 +447,9 @@ npm run gen:registry   # regenerate src/registry/ (add -- --check to verify it i
 
 **How the registry is built.**
 1. `scripts/fetch-spec.ts` snapshots the OpenAPI operation specs that developer.webex.com embeds in its API
-   reference pages: `configuration.json` (Configuration) and `flows.json` (Flow Orchestration → Flows). The
-   snapshots are committed, so builds never need the network.
+   reference pages: `configuration.json` (Configuration), `flows.json` (Flow Orchestration → Flows) and
+   `webex-admin.json` (Webex Admin → People, Licenses, Roles, from the admin docs portal). The snapshots are
+   committed, so builds never need the network.
 2. `scripts/gen-registry.ts` turns the snapshots into `src/registry/`. `scripts/registry-overrides.ts` is its
    hand-maintained input: resource keys, aliases, toolsets, naming fixes, and per-resource operation allowlists
    (the `flow` resource uses one to expose only the operations the official server lacks).
@@ -398,7 +461,8 @@ restore anything they change:
 ```bash
 WXCC_LIVE=1 WXCC_SANDBOX_ORG_IDS=<sandbox org id> npm run test:live
 ```
-They refuse to run unless the configured org id is in `WXCC_SANDBOX_ORG_IDS`.
+They refuse to run unless the configured org id is in `WXCC_SANDBOX_ORG_IDS`. Test people get throwaway email
+addresses from [throwawaymail.app](https://throwawaymail.app/for-agents), so activation emails go nowhere real.
 
 Design notes are in `docs/architecture.md`; the build history and the API findings are in `docs/refactor-plan.md`.
 
@@ -418,8 +482,35 @@ Design notes are in `docs/architecture.md`; the build history and the API findin
 | `in use by other entities …` | Remove the named references first, or check `view: "references"`. For flows, the error lists the dependents. |
 | `request timed out … the record still exists` | The API may still finish the delete. Check with `wxcc-ext-get` before retrying, or raise `request_timeout_ms`. |
 | `at most 50 ids per call` | Split the list over several `wxcc-ext-bulk` calls. |
+| `the token belongs to Webex org …, not org_id …` | Use a token of an administrator in the configured organization (partner tokens are not supported). |
+| `forbidden: … spark-admin:people_read / people_write` | The token is not a Webex full or user administrator. |
+| `partly applied (HTTP 206): … did not change` | Webex kept some fields; see `notApplied`. Some default licenses cannot be removed. |
+| `… now exists with email …` after a failed create | The person was created anyway: fix it with `wxcc-ext-update`. |
+| A person you just created or deleted is missing from (or still in) a search | The People search index lags; read by id. |
 
 ## Changelog
+
+### 2.3.0 (2026-11-03)
+**Added**
+- **Webex people:** new `person` resource (toolset `people`) with list, get, create, update and delete, plus
+  `view: "me"`, on the Webex People API. Bulk delete works for people. See
+  [Webex people and licenses](#webex-people-and-licenses).
+- **`license` and `role` resources** (list, get).
+- **Licenses and roles by name** on person creates and updates, resolved to ids in the dry-run, with a warning for
+  licenses without free units.
+- **Partial-write reporting:** a 206 update lists the fields that did not change (`notApplied`); a failed update
+  says which fields changed anyway; a failed create checks whether the person was created anyway.
+- **Safety:** Webex calls are refused unless the token's organization is `org_id`; the token's own person is never
+  deleted.
+- **`webex_base_url` config setting** (default `https://webexapis.com`), and the `people` toolset.
+
+**Changed**
+- **The client serves two APIs.** Paths starting with `/v1/` go to the Webex API host; error bodies of both APIs
+  are parsed.
+- **Lists** map `pageSize` to the Webex `max`, return `meta.nextCursor` from the `Link` header, and ignore
+  `pageSize` for lists that always return everything (licenses, roles).
+- **`npm run fetch:spec`** reads each section from its own portal page, and writes `webex-admin.json`.
+- **Bulk delete** shows `displayName` when a record has no `name`.
 
 ### 2.2.0 (2026-11-02)
 Improvements from a cleanup of about 500 stale records on a production tenant, each one checked against the

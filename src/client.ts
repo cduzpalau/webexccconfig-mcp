@@ -1,20 +1,22 @@
 /**
- * The only module that talks to the Webex Contact Center REST API.
+ * The only module that talks to the Webex Contact Center and Webex REST APIs.
  *
  * Paths are registry templates such as `/organization/{orgid}/v2/team/{id}` (Configuration) or
- * `/{orgid}/project/<projectId>/flows/{id}` (Flows); both are served by the same regional gateway.
+ * `/{orgid}/project/<projectId>/flows/{id}` (Flows), both served by the regional WxCC gateway, or
+ * `/v1/people/{id}` (Webex API, served by webexapis.com in every region). The prefix picks the host.
  * The client fills in `{orgid}` from config and every other placeholder from `pathParams`, then
  * maps API errors to short, actionable messages. The token is only ever placed in the
  * Authorization header.
  */
 import type { TokenProvider } from "./auth.js";
+import { DEFAULT_WEBEX_BASE_URL } from "./config.js";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export type QueryValue = string | number | boolean | string[] | undefined | null;
 
 export interface RequestOptions {
   method: HttpMethod;
-  /** Path template starting with /organization/{orgid} or /{orgid}/. */
+  /** Path template starting with /organization/{orgid}, /{orgid}/ (WxCC) or /v1/ (Webex). */
   path: string;
   pathParams?: Record<string, string>;
   query?: Record<string, QueryValue>;
@@ -30,6 +32,13 @@ export interface ApiResponse<T = unknown> {
   status: number;
   data: T;
   trackingId?: string;
+  /** Webex lists: the cursor of the next page, from the Link: <…>; rel="next" header. */
+  nextCursor?: string;
+}
+
+/** Webex API paths (webexapis.com) start with /v1/; everything else goes to the WxCC gateway. */
+export function isWebexPath(path: string): boolean {
+  return path.startsWith("/v1/");
 }
 
 export interface EntityRef {
@@ -83,6 +92,8 @@ export class WxccClientError extends Error {
 
 export interface ClientOptions {
   baseUrl: string;
+  /** Host for /v1/ paths; defaults to https://webexapis.com. */
+  webexBaseUrl?: string;
   orgId: string;
   tokenProvider: TokenProvider;
   timeoutMs?: number;
@@ -95,6 +106,7 @@ const MAX_REFS_IN_MESSAGE = 10;
 
 export class WxccClient {
   readonly #baseUrl: string;
+  readonly #webexBaseUrl: string;
   readonly #orgId: string;
   readonly #tokens: TokenProvider;
   readonly #timeoutMs: number;
@@ -102,6 +114,7 @@ export class WxccClient {
 
   constructor(opts: ClientOptions) {
     this.#baseUrl = opts.baseUrl.replace(/\/+$/, "");
+    this.#webexBaseUrl = (opts.webexBaseUrl ?? DEFAULT_WEBEX_BASE_URL).replace(/\/+$/, "");
     this.#orgId = opts.orgId;
     this.#tokens = opts.tokenProvider;
     this.#timeoutMs = opts.timeoutMs ?? 30_000;
@@ -114,8 +127,9 @@ export class WxccClient {
 
   /** Builds the full request URL for a path template. */
   buildUrl(path: string, pathParams: Record<string, string> = {}, query: Record<string, QueryValue> = {}): string {
-    if (!path.startsWith("/organization/{orgid}") && !path.startsWith("/{orgid}/")) {
-      throw new WxccClientError(`path must start with /organization/{orgid} or /{orgid}/: ${path}`);
+    const webex = isWebexPath(path);
+    if (!webex && !path.startsWith("/organization/{orgid}") && !path.startsWith("/{orgid}/")) {
+      throw new WxccClientError(`path must start with /organization/{orgid}, /{orgid}/ or /v1/: ${path}`);
     }
     const filled = path.replace(/\{([^}]+)\}/g, (_, name: string) => {
       if (name === "orgid") return encodeURIComponent(this.#orgId);
@@ -125,7 +139,7 @@ export class WxccClient {
       }
       return encodeURIComponent(value);
     });
-    const url = new URL(this.#baseUrl + filled);
+    const url = new URL((webex ? this.#webexBaseUrl : this.#baseUrl) + filled);
     for (const [key, value] of Object.entries(query)) {
       if (value === undefined || value === null) continue;
       if (Array.isArray(value)) for (const v of value) url.searchParams.append(key, v);
@@ -140,6 +154,7 @@ export class WxccClient {
     }
     const url = this.buildUrl(opts.path, opts.pathParams, opts.query);
     const label = `${opts.method} ${new URL(url).pathname}`;
+    const api = isWebexPath(opts.path) ? "Webex" : "WxCC";
     const token = await this.#tokens.getToken();
 
     const headers: Record<string, string> = { Authorization: `Bearer ${token}`, Accept: ACCEPT };
@@ -161,15 +176,31 @@ export class WxccClient {
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (err) {
-      throw new WxccClientError(redact(describeNetworkError(err, label, timeoutMs), token), isTimeout(err));
+      throw new WxccClientError(redact(describeNetworkError(err, label, timeoutMs, api), token), isTimeout(err));
     }
 
     const data = await readBody(res);
     const headerTrackingId = res.headers.get("trackingid") ?? undefined;
-    if (!res.ok) throw toApiError(res, data, label, headerTrackingId, token);
+    if (!res.ok) throw toApiError(res, data, label, headerTrackingId, token, api);
 
-    return { status: res.status, data: data as T, trackingId: headerTrackingId };
+    const nextCursor = nextCursorOf(res.headers.get("link"));
+    return { status: res.status, data: data as T, trackingId: headerTrackingId, ...(nextCursor ? { nextCursor } : {}) };
   }
+}
+
+/** The `cursor` query value of the rel="next" link, if any. */
+export function nextCursorOf(link: string | null): string | undefined {
+  if (!link) return undefined;
+  for (const part of link.split(",")) {
+    const m = /<([^>]+)>\s*;\s*rel="?next"?/i.exec(part);
+    if (!m) continue;
+    try {
+      return new URL(m[1]!).searchParams.get("cursor") ?? undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
 }
 
 async function readBody(res: Response): Promise<unknown> {
@@ -187,9 +218,12 @@ async function readBody(res: Response): Promise<unknown> {
  * Configuration API: { trackingId, error: { key, reason, message[], referencedEntities? } }.
  * Flows API: { errorCode, errorMessage, dependentFlows[], dependentSubflows[], dependentEPsAndRSs[],
  * dependentRcs[] } (a 412 on delete lists what still uses the flow).
+ * Webex API: { message, errors: [{ description }], trackingId }.
  */
 interface ApiErrorBody {
   trackingId?: unknown;
+  message?: unknown;
+  errors?: unknown;
   error?: {
     key?: unknown;
     reason?: unknown;
@@ -225,11 +259,18 @@ function toApiError(
   label: string,
   headerTrackingId: string | undefined,
   token: string,
+  api: "WxCC" | "Webex" = "WxCC",
 ): WxccApiError {
   const body: ApiErrorBody = isObject(data) ? (data as ApiErrorBody) : {};
   const trackingId = redactOpt(body.trackingId, token) ?? headerTrackingId;
   const messages = Array.isArray(body.error?.message) ? body.error.message.filter(isObject) : [];
-  const descriptions = messages.map((m) => str(m.description)).filter((d): d is string => !!d);
+  const webexErrors = Array.isArray(body.errors) ? body.errors.filter(isObject) : [];
+  const descriptions = [
+    ...new Set(
+      [...messages, ...webexErrors].map((m) => str(m.description)).filter((d): d is string => !!d),
+    ),
+  ];
+  if (!descriptions.length && str(body.message)) descriptions.push(str(body.message)!);
   const references = [
     ...messages.flatMap((m) =>
       (Array.isArray(m.references) ? m.references.filter(isObject) : []).map((r) => ({
@@ -259,7 +300,12 @@ function toApiError(
       message = "token expired: refresh WEBEX_TOKEN";
       break;
     case 403:
-      message = `forbidden: ${desc || "the token lacks permission (needs cjp:config_read / cjp:config_write)"}`;
+      message = `forbidden: ${
+        desc ||
+        (api === "Webex"
+          ? "the token lacks permission (needs a Webex admin with spark-admin:people_read / people_write)"
+          : "the token lacks permission (needs cjp:config_read / cjp:config_write)")
+      }`;
       break;
     case 404:
       // The API often just echoes "Not Found"; naming the request is more useful.
@@ -284,7 +330,7 @@ function toApiError(
     default:
       message =
         res.status >= 500
-          ? `WxCC server error ${res.status}: ${desc || label}`
+          ? `${api} server error ${res.status}: ${desc || label}`
           : `request failed (${res.status}): ${desc || label}`;
   }
   if (trackingId && res.status !== 401) message += ` (trackingId: ${trackingId})`;
@@ -323,13 +369,13 @@ function isTimeout(err: unknown): boolean {
   return err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
 }
 
-function describeNetworkError(err: unknown, label: string, timeoutMs: number): string {
+function describeNetworkError(err: unknown, label: string, timeoutMs: number, api: string): string {
   if (isTimeout(err)) {
     return `request timed out after ${timeoutMs}ms: ${label}`;
   }
   const cause = err instanceof Error ? (err.cause as { code?: string; message?: string } | undefined) : undefined;
   const detail = cause?.code ?? cause?.message ?? (err instanceof Error ? err.message : String(err));
-  return `network error calling WxCC (${detail}): ${label}`;
+  return `network error calling ${api} (${detail}): ${label}`;
 }
 
 /** Defensive: strips the token from any message even if an upstream echoed it back. */

@@ -29,6 +29,7 @@ describe("resolveConfig", () => {
     expect(c.snapshotDir).toBe("/home/test/.wxcc-ext/snapshots");
     expect(c.exportDir).toBe("/home/test/.wxcc-ext/exports");
     expect(c.bulkConcurrency).toBe(4);
+    expect(c.webexBaseUrl).toBe("https://webexapis.com");
     expect(c.deferToOfficial).not.toContain("flow");
     expect(c.audio).toEqual({
       voice: undefined,
@@ -72,6 +73,18 @@ describe("resolveConfig", () => {
       expect(() => resolveConfig({ base_url, org_id: ORG }, noEnv)).toThrow(/must not end in \/v1/);
     },
   );
+
+  it("takes webex_base_url from config or WEBEX_API_BASE_URL, without /v1", () => {
+    expect(resolveConfig({ region: "us1", org_id: ORG, webex_base_url: "https://api-usgov.webex.com/" }, noEnv).webexBaseUrl).toBe(
+      "https://api-usgov.webex.com",
+    );
+    expect(
+      resolveConfig({ region: "us1", org_id: ORG }, { ...noEnv, env: { WEBEX_API_BASE_URL: "https://webex.example.com" } }).webexBaseUrl,
+    ).toBe("https://webex.example.com");
+    expect(() => resolveConfig({ region: "us1", org_id: ORG, webex_base_url: "https://webexapis.com/v1" }, noEnv)).toThrow(
+      "webex_base_url must not end in /v1: use the bare host, e.g. https://webexapis.com",
+    );
+  });
 
   it("rejects a non-https base_url", () => {
     expect(() => resolveConfig({ base_url: "http://api.wxcc-us1.cisco.com", org_id: ORG }, noEnv)).toThrow(/https/);

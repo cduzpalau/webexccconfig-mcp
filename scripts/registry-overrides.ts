@@ -35,6 +35,16 @@ export interface ResourceOverride {
   sendDefaults?: Record<string, Record<string, string>>;
   /** Minimum request timeouts in ms for slow ops, keyed like sendDefaults. */
   timeoutMs?: Record<string, number>;
+  /** Treat every field of the get response that the PUT body does not take as read-only. */
+  readOnlyFromBody?: boolean;
+  /** See RegistryEntry.volatileFields. */
+  volatileFields?: string[];
+  /** See RegistryEntry.nameRefs. */
+  nameRefs?: Record<string, { resource: string; field: string }>;
+  /** See RegistryEntry.createLookup. */
+  createLookup?: { query: string; field: string };
+  /** See RegistryEntry.createWarnings. */
+  createWarnings?: Record<string, string>;
 }
 
 /**
@@ -45,6 +55,7 @@ export interface ResourceOverride {
 export const FIXED_PATH_PARAMS: Record<string, string> = { projectId: "5e5c9ad6d61f870d6d778c1b" };
 
 const FLOWS = "/{orgId}/project/{projectId}";
+const WEBEX = "/v1";
 
 /** Fields stripped from merged PUT bodies in addition to those the spec marks readOnly. */
 export const ALWAYS_READ_ONLY = ["createdTime", "lastUpdatedTime"];
@@ -142,6 +153,18 @@ export const RESOURCES: ResourceOverride[] = [
     toolset: "data",
   },
   { key: "holiday-list", base: "holiday-list", displayName: "Holiday List", toolset: "schedule" },
+  {
+    key: "license",
+    base: "licenses",
+    displayName: "Webex License",
+    aliases: ["licenses", "webex-license"],
+    toolset: "people",
+    description:
+      "Licenses of the Webex organization (Webex API), with total and consumed units. Assign them through a " +
+      "person's licenses field, by name or id.",
+    idParam: "licenseId",
+    operations: [`GET ${WEBEX}/licenses`, `GET ${WEBEX}/licenses/{licenseId}`],
+  },
   { key: "multimedia-profile", base: "multimedia-profile", displayName: "Multimedia Profile", toolset: "agent" },
   {
     key: "organization-setting",
@@ -165,7 +188,39 @@ export const RESOURCES: ResourceOverride[] = [
     parent: { resource: "outdial-ani", param: "outDialAniId" },
   },
   { key: "overrides", base: "overrides", displayName: "Overrides", aliases: ["override"], toolset: "schedule" },
+  {
+    key: "person",
+    base: "people",
+    displayName: "Webex Person",
+    aliases: ["people", "webex-user", "webex-person"],
+    toolset: "people",
+    description:
+      "Webex users (Webex People API). Create, update and delete people; licenses and roles take names or ids. " +
+      "Every person gets a Contact Center user record (resource user), removed when the person is deleted; a " +
+      "Contact Center license makes them an agent. Creates always get the org's default licenses as well. " +
+      "update replaces the record (read, merge, PUT); some fields may not apply, and the result says which.",
+    idParam: "personId",
+    readOnlyFromBody: true,
+    // Presence, and fields Webex updates on its own after a create (lastModified moves ~2 s later
+    // while SIP addresses are assigned). None of them is in the PUT body.
+    volatileFields: ["status", "lastActivity", "lastModified", "sipAddresses", "invitePending"],
+    nameRefs: { licenses: { resource: "license", field: "name" }, roles: { resource: "role", field: "name" } },
+    createLookup: { query: "email", field: "emails" },
+    createWarnings: {
+      licenses: "no licenses given: the person gets only the org's default licenses (pass licenses by name to add more)",
+    },
+    sendDefaults: { list: { excludeStatus: "true" } },
+  },
   { key: "resource-collection", base: "resource-collection", displayName: "Resource Collection", toolset: "org" },
+  {
+    key: "role",
+    base: "roles",
+    displayName: "Webex Admin Role",
+    aliases: ["roles", "webex-role"],
+    toolset: "people",
+    description: "Admin roles of the Webex organization (Webex API). Assign them through a person's roles field.",
+    idParam: "roleId",
+  },
   { key: "site", base: "site", displayName: "Site", toolset: "org" },
   { key: "skill", base: "skill", displayName: "Skill", toolset: "routing" },
   { key: "skill-profile", base: "skill-profile", displayName: "Skill Profile", toolset: "routing" },

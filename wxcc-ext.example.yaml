@@ -11,6 +11,9 @@ region: us1
 # Optional: overrides the derived host. Must be the bare host, without /v1.
 # base_url: https://api.wxcc-us1.cisco.com
 
+# Optional: Webex API host for people, licenses and roles (same for every region). Bare host, without /v1.
+# webex_base_url: https://webexapis.com
+
 # Webex Contact Center organization id (or set WEBEX_ORG_ID).
 org_id: 00000000-0000-0000-0000-000000000000
 
@@ -18,7 +21,7 @@ org_id: 00000000-0000-0000-0000-000000000000
 mode: read-only
 
 # Toolsets to enable (default: all).
-# toolsets: [routing, agent, telephony, media, data, schedule, org, digital, ai, flow]
+# toolsets: [routing, agent, telephony, media, data, schedule, org, digital, ai, flow, people]
 
 # Resources this server never exposes. Leaving this out applies the default list in the comment
 # below: the admin configuration the official WxCC MCP server writes, as of November 2026.

@@ -2,14 +2,15 @@
  * Snapshots Webex Contact Center API specs embedded in developer.webex.com.
  *
  * Every API reference page server-renders `window.__INITIAL_STATE__`, whose side navigation
- * carries the OpenAPI operation spec of every Contact Center endpoint. This script fetches one
- * page, walks to "API Reference (Contact Center)" → each section in SECTIONS, validates each
- * operation and writes one file per section under apireference/openapi/:
+ * carries the OpenAPI operation spec of every endpoint in that portal. This script fetches one
+ * page per portal, walks to the section's API reference menu → each section in SECTIONS, validates
+ * each operation and writes one file per section under apireference/openapi/:
  *   configuration.json  "Webex Contact Center: Configuration" (all groups)
  *   flows.json          "Webex Contact Center: Flow Orchestration" → "Flow Orchestration: Flows"
+ *   webex-admin.json    "API Reference (Admin)" → "Webex Admin: All APIs" → People, Licenses, Roles
  *
- * Manual, needs network: `npm run fetch:spec [-- [--only <name>] [<page url>]]`. The page content
- * is untrusted: it is only JSON-parsed and validated, never evaluated.
+ * Manual, needs network: `npm run fetch:spec [-- [--only <name>] [<page url>]]`; a page url needs
+ * --only. The page content is untrusted: it is only JSON-parsed and validated, never evaluated.
  */
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -18,14 +19,18 @@ import { z } from "zod";
 
 const ROOT = resolve(import.meta.dirname, "..");
 export const SPEC_DIR = join(ROOT, "apireference", "openapi");
-const DEFAULT_URL =
+const CONTACT_CENTER_URL =
   "https://developer.webex.com/webex-contact-center/docs/api/v1/desktop-layout/update-specific-desktop-layout-by-id";
-const API_REFERENCE_TITLE = "API Reference (Contact Center)";
+const CONTACT_CENTER_REFERENCE = "API Reference (Contact Center)";
 
 export interface SectionSpec {
   /** Short name, also the file name: apireference/openapi/<name>.json. */
   name: string;
-  /** Section title under "API Reference (Contact Center)". */
+  /** Portal page whose navigation carries the section. */
+  pageUrl: string;
+  /** Top-level navigation entry holding the section, e.g. "API Reference (Contact Center)". */
+  apiReference: string;
+  /** Section title under apiReference. */
   title: string;
   /** Only these groups of the section; all groups when omitted. */
   groups?: string[];
@@ -33,21 +38,40 @@ export interface SectionSpec {
   pathPrefix: string;
   /** Removed from group titles, e.g. "Configuration: Team" → "Team". */
   groupTitlePrefix: RegExp;
+  /**
+   * Prefixed to every path by the generator (not stored in the snapshot): the Webex APIs publish
+   * `/people` for what is served at `https://webexapis.com/v1/people`.
+   */
+  basePath?: string;
 }
 
 export const SECTIONS: SectionSpec[] = [
   {
     name: "configuration",
+    pageUrl: CONTACT_CENTER_URL,
+    apiReference: CONTACT_CENTER_REFERENCE,
     title: "Webex Contact Center: Configuration",
     pathPrefix: "/organization/{orgid}",
     groupTitlePrefix: /^Configuration:\s*/,
   },
   {
     name: "flows",
+    pageUrl: CONTACT_CENTER_URL,
+    apiReference: CONTACT_CENTER_REFERENCE,
     title: "Webex Contact Center: Flow Orchestration",
     groups: ["Flow Orchestration: Flows"],
     pathPrefix: "/{orgId}/project/{projectId}",
     groupTitlePrefix: /^Flow Orchestration:\s*/,
+  },
+  {
+    name: "webex-admin",
+    pageUrl: "https://developer.webex.com/admin/docs/api/v1/people",
+    apiReference: "API Reference (Admin)",
+    title: "Webex Admin: All APIs",
+    groups: ["All APIs: People", "All APIs: Licenses", "All APIs: Roles"],
+    pathPrefix: "/",
+    groupTitlePrefix: /^All APIs:\s*/,
+    basePath: "/v1",
   },
 ];
 
@@ -131,8 +155,8 @@ export function collectOperations(state: unknown, spec: SectionSpec = SECTIONS[0
   const menus = (state as { sideNavigation?: { sideNavigationData?: { subMenu?: NavNode[] } } })
     ?.sideNavigation?.sideNavigationData?.subMenu;
   if (!Array.isArray(menus)) throw new Error("sideNavigation.sideNavigationData.subMenu missing");
-  const apiRef = menus.find((m) => m.title === API_REFERENCE_TITLE);
-  if (!apiRef) throw new Error(`"${API_REFERENCE_TITLE}" not found in navigation`);
+  const apiRef = menus.find((m) => m.title === spec.apiReference);
+  if (!apiRef) throw new Error(`"${spec.apiReference}" not found in navigation`);
   const section = apiRef.subMenu?.find((m) => m.title === spec.title);
   if (!section?.subMenu) throw new Error(`"${spec.title}" not found in navigation`);
   const groups = spec.groups
@@ -267,14 +291,23 @@ async function main(): Promise<void> {
   const only = onlyAt >= 0 ? args.splice(onlyAt, 2)[1] : undefined;
   const sections = only ? SECTIONS.filter((s) => s.name === only) : SECTIONS;
   if (!sections.length) throw new Error(`unknown section "${only}" (sections: ${SECTIONS.map((s) => s.name).join(", ")})`);
-  const url = args[0] ?? DEFAULT_URL;
-  if (!url.startsWith("https://developer.webex.com/")) throw new Error("only developer.webex.com pages are supported");
-  const res = await fetch(url, { headers: { Accept: "text/html" }, signal: AbortSignal.timeout(120_000) });
-  if (!res.ok) throw new Error(`GET ${url} → ${res.status}`);
-  const state = extractInitialState(await res.text());
+  const urlOverride = args[0];
+  if (urlOverride && new Set(sections.map((s) => s.pageUrl)).size > 1) {
+    throw new Error("a page url applies to one portal: combine it with --only <section>");
+  }
   const fetchedAt = new Date().toISOString().slice(0, 10);
+  const pages = new Map<string, unknown>();
 
   for (const section of sections) {
+    const url = urlOverride ?? section.pageUrl;
+    if (!url.startsWith("https://developer.webex.com/")) throw new Error("only developer.webex.com pages are supported");
+    let state = pages.get(url);
+    if (state === undefined) {
+      const res = await fetch(url, { headers: { Accept: "text/html" }, signal: AbortSignal.timeout(120_000) });
+      if (!res.ok) throw new Error(`GET ${url} → ${res.status}`);
+      state = extractInitialState(await res.text());
+      pages.set(url, state);
+    }
     const file = specFile(section.name);
     const next = buildSpecFile(state, section, url, fetchedAt);
     const prev = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as SpecFile) : undefined;

@@ -27,6 +27,7 @@ async function main(): Promise<void> {
   const tokenProvider = StaticTokenProvider.fromEnv();
   const client = new WxccClient({
     baseUrl: config.baseUrl,
+    webexBaseUrl: config.webexBaseUrl,
     orgId: config.orgId,
     tokenProvider,
     timeoutMs: config.requestTimeoutMs,

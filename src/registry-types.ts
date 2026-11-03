@@ -71,6 +71,23 @@ export interface RegistryEntry {
   /** Stripped from a merged PUT body. */
   readOnlyFields: string[];
   requiredOnCreate: string[];
+  /**
+   * Read-only fields dropped from every record read before a write (presence, lastModified): they
+   * change on their own, so they must not make a confirmation stale. Not in snapshots either.
+   */
+  volatileFields?: string[];
+  /**
+   * Body fields holding lists of another resource's ids (person.licenses → license). Writes accept
+   * names or ids; names are matched on `field` of that resource's records and resolved to ids.
+   */
+  nameRefs?: Record<string, { resource: string; field: string }>;
+  /**
+   * The API may create the record even when the create fails (People API). After a failed create,
+   * the record is looked up with this list query param, valued from the first entry of `field`.
+   */
+  createLookup?: { query: string; field: string };
+  /** Dry-run warnings for a create whose body lacks the field. */
+  createWarnings?: Record<string, string>;
   operations: RegistryOperation[];
 }
 

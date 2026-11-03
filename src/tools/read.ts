@@ -89,8 +89,8 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
     "wxcc-ext-list-resource-types",
     {
       description:
-        "Start here. Lists the Webex Contact Center configuration resource types this server manages " +
-        "(queues, teams, skills, users, flows, ...), with their operations, views and actions.",
+        "Start here. Lists the resource types this server manages (Contact Center queues, teams, skills, " +
+        "users, flows; Webex people, licenses), with their operations, views and actions.",
       inputSchema: { toolset: z.enum(TOOLSETS).optional().describe("Only this toolset") },
       annotations: READ_ANNOTATIONS,
     },
@@ -219,15 +219,17 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
         for (const k of ["filter", "search", "attributes", "sort", "page", "pageSize"] as const) {
           if (args[k] !== undefined) named[k] = args[k]!;
         }
-        // Some APIs (flows) call the page size "size".
-        if (named.pageSize !== undefined && !op.queryParams.some((p) => p.name === "pageSize") && op.queryParams.some((p) => p.name === "size")) {
-          named.size = named.pageSize;
-          delete named.pageSize;
+        // Some APIs call the page size "size" (flows) or "max" (Webex); some lists (licenses, roles)
+        // always return everything, so a page size is dropped there.
+        if (named.pageSize !== undefined && !op.queryParams.some((p) => p.name === "pageSize")) {
+          const alt = ["size", "max"].find((n) => op.queryParams.some((p) => p.name === n));
+          if (alt) named[alt] = named.pageSize;
+          if (alt || !op.paginated) delete named.pageSize;
         }
         const query = buildQuery(entry, op, { ...args.query, ...named });
         const pathParams = buildPathParams(entry, op, { parentId: args.parentId, params: args.params });
         const res = await callApi(ctx, { tool: "wxcc-ext-list", phase: "read", entry, op, pathParams, query });
-        return shapeResult(entry.key, res.data, ctx.config.maxResponseChars, LIST_HINT);
+        return shapeResult(entry.key, res.data, ctx.config.maxResponseChars, LIST_HINT, res.nextCursor);
       },
     ),
   );

@@ -9,14 +9,14 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import type { ApiResponse, QueryValue } from "../client.js";
+import { isWebexPath, WxccApiError, WxccClientError, type ApiResponse, type QueryValue } from "../client.js";
 import type { RegistryEntry, RegistryOperation } from "../registry-types.js";
-import { fingerprint, planHash } from "../write/confirm.js";
+import { canonicalString, fingerprint, planHash } from "../write/confirm.js";
 import type { FileInput, UploadKind } from "../write/files.js";
 import { loadJson, outline } from "../write/jsonfile.js";
 import { changedFields, deepMerge, diff, isPlainObject, omit, presentChanges, type Change } from "../write/merge.js";
 import { actionNames, findOp, ToolError } from "./catalog.js";
-import { bulkDelete, isSystemDefault, sendDelete, SYSTEM_DEFAULT, type DeleteOutcome } from "./delete.js";
+import { bulkDelete, isSystemDefault, selfId, SELF, sendDelete, SYSTEM_DEFAULT, type DeleteOutcome } from "./delete.js";
 import {
   buildPathParams,
   buildQuery,
@@ -27,11 +27,13 @@ import {
   opLabel,
   readCurrent,
   shapeResult,
+  withoutVolatile,
   stripLinks,
   type CallSpec,
   type QueryInput,
   type ToolContext,
 } from "./exec.js";
+import { resolveRefs } from "./refs.js";
 
 
 interface Upload {
@@ -64,6 +66,8 @@ interface Plan {
   bodyFile?: string;
   /** Replaces the plain API call on apply (deletes: 412 explanations, timeout checks). */
   send?: (log: CallSpec["log"]) => Promise<DeleteOutcome>;
+  /** Extra dry-run fields, e.g. resolved license names. */
+  info?: Record<string, unknown>;
 }
 
 function hashOf(plan: Plan): string {
@@ -121,6 +125,7 @@ async function execute(ctx: ToolContext, plan: Plan, confirm: string | undefined
       summary: plan.summary,
       request: `${plan.op.method} ${path}`,
       ...(plan.changes.length ? { changes: presentChanges(plan.changes) } : {}),
+      ...plan.info,
       ...(plan.warnings.length ? { warnings: plan.warnings } : {}),
       ...(plan.showBody && body !== undefined
         ? bodyText.length <= 6000
@@ -193,6 +198,7 @@ async function execute(ctx: ToolContext, plan: Plan, confirm: string | undefined
     ...(res ? { httpStatus: res.status } : {}),
     ...(res?.trackingId ? { trackingId: res.trackingId } : {}),
     ...(out.note ? { note: out.note } : {}),
+    ...out.extra,
     ...(snapshot ? { snapshot } : {}),
     ...(res ? { result: summariseResult(res.data, ctx.config.maxResponseChars) } : {}),
   });
@@ -323,8 +329,16 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
         if (!op) throw new ToolError(`${entry.key} does not support create`);
         const source = bodyFrom(ctx, args.body, args.bodyFile);
         if (!isPlainObject(source.json)) throw new ToolError(args.bodyFile ? "bodyFile must hold a JSON object" : "create needs body or bodyFile");
-        const body = source.json;
         const warnings: string[] = [];
+        let body = source.json;
+        let info: Plan["info"];
+        if (entry.nameRefs && !op.multipartParts) {
+          const refs = await resolveRefs(ctx, "wxcc-ext-create", entry, body);
+          body = refs.body;
+          warnings.push(...refs.warnings);
+          if (Object.keys(refs.shown).length) info = { refs: refs.shown };
+        }
+        for (const [field, warning] of Object.entries(entry.createWarnings ?? {})) if (!(field in body)) warnings.push(warning);
         if ("id" in body) warnings.push("body.id is ignored by create; use wxcc-ext-update for existing records");
         const plan: Plan = {
           tool: "wxcc-ext-create",
@@ -337,7 +351,13 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
           warnings,
           showBody: true,
           ...(source.file ? { bodyFile: source.file } : {}),
+          ...(info ? { info } : {}),
         };
+        if (entry.createLookup && !op.multipartParts) {
+          const sent = body;
+          const pathParams = plan.pathParams;
+          plan.send = (log) => createAndCheck(ctx, { entry, op, pathParams, json: sent, log });
+        }
         if (op.multipartParts) {
           if (source.file) throw new ToolError(`${entry.key} create takes an upload; bodyFile is not supported`);
           plan.upload = uploadFor(ctx, entry, op, body, args.file, warnings);
@@ -378,9 +398,16 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
         if (!Object.keys(args.changes).length && !args.file) throw new ToolError("changes is empty: nothing to update");
 
         const warnings: string[] = [];
-        const changes = dropReadOnly(entry, args.changes, warnings);
+        let changes = dropReadOnly(entry, args.changes, warnings);
         const current = await readCurrent(ctx, tool, entry, id, args.parentId);
         if (!current) throw new ToolError(`${entry.key} has no get operation, so it cannot be updated safely`);
+        let info: Plan["info"];
+        if (entry.nameRefs) {
+          const refs = await resolveRefs(ctx, tool, entry, changes, current);
+          changes = refs.body;
+          warnings.push(...refs.warnings);
+          if (Object.keys(refs.shown).length) info = { refs: refs.shown };
+        }
         const base = omit(current, entry.readOnlyFields);
         const after = deepMerge(base, changes) as Record<string, unknown>;
 
@@ -394,6 +421,7 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
           before: [{ id, data: current }],
           changes: diff(base, after),
           warnings,
+          ...(info ? { info } : {}),
         };
         if (args.file) {
           if (!putOp?.multipartParts) throw new ToolError(`${entry.key} update takes no file`);
@@ -424,6 +452,21 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
           throw new ToolError(`${entry.key} does not support update${putOp?.multipartParts ? " without a file" : ""}`);
         }
         if (!plan.changes.length && !args.file) throw new ToolError("no changes: the record already has these values");
+        if (!plan.upload) {
+          const sent = plan;
+          plan.send = (log) =>
+            updateAndCheck(ctx, {
+              entry,
+              op: sent.op,
+              id,
+              parentId: args.parentId,
+              pathParams: sent.pathParams,
+              json: sent.json,
+              expected: after,
+              fields: Object.keys(changes),
+              log,
+            });
+        }
         return execute(ctx, plan, args.confirm);
       },
     ),
@@ -441,6 +484,7 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
       const op = findOp(entry, "delete");
       if (!op) throw new ToolError(`${entry.key} does not support delete`);
       const query = buildQuery(entry, op, args.query ?? {});
+      if (args.id === (await selfId(ctx, entry))) throw new ToolError(`refusing to delete ${entry.key} ${args.id}: ${SELF}`);
       const current = await readCurrent(ctx, tool, entry, args.id, args.parentId, args.query);
       const warnings = isSystemDefault(current)
         ? [SYSTEM_DEFAULT]
@@ -660,4 +704,121 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 
 function prefix(itemIdentifier: number, changes: Change[]): Change[] {
   return changes.map((c) => ({ ...c, path: `[${itemIdentifier}] ${c.path}` }));
+}
+
+/** HTTP statuses after which a create or update certainly changed nothing. */
+const NOTHING_CHANGED = new Set([401, 403, 409, 412, 429]);
+
+function mayHaveApplied(err: unknown): boolean {
+  if (err instanceof WxccClientError) return err.timedOut;
+  return err instanceof WxccApiError && !NOTHING_CHANGED.has(err.status);
+}
+
+/**
+ * Create with a check (registry createLookup, People API): a failed or timed-out create may still
+ * have created the record, so it is looked up before the error is returned.
+ */
+async function createAndCheck(
+  ctx: ToolContext,
+  spec: { entry: RegistryEntry; op: RegistryOperation; pathParams: Record<string, string>; json: Record<string, unknown>; log: CallSpec["log"] },
+): Promise<DeleteOutcome> {
+  const tool = "wxcc-ext-create";
+  const { entry, op } = spec;
+  try {
+    const res = await callApi(ctx, { tool, phase: "apply", entry, op, pathParams: spec.pathParams, json: spec.json, log: spec.log });
+    return { res };
+  } catch (err) {
+    if (!mayHaveApplied(err)) throw err;
+    const lookup = entry.createLookup!;
+    const raw = spec.json[lookup.field];
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    const listOp = findOp(entry, "list");
+    if (typeof value !== "string" || !listOp) throw err;
+    let found: Record<string, unknown> | undefined;
+    try {
+      const res = await callApi(ctx, {
+        tool,
+        phase: "read",
+        entry,
+        op: listOp,
+        pathParams: {},
+        query: buildQuery(entry, listOp, { [lookup.query]: value }),
+      });
+      const data = isPlainObject(res.data) ? res.data : {};
+      const rows = Array.isArray(data.items) ? data.items : Array.isArray(data.data) ? data.data : [];
+      found = rows.find(isPlainObject);
+    } catch {
+      throw err;
+    }
+    if (!found) throw err;
+    const who = `${entry.key} ${String(found.id)}${label(found)}`;
+    if (err instanceof WxccClientError) {
+      return { note: `the create timed out, but ${who} now exists with ${lookup.query} ${value}`, extra: { id: found.id } };
+    }
+    throw new ToolError(
+      `${(err as Error).message}; but ${who} now exists with ${lookup.query} ${value}: the create partly ` +
+        "succeeded. Check it with wxcc-ext-get and fix it with wxcc-ext-update instead of creating again",
+    );
+  }
+}
+
+/**
+ * Update with a check: a 206 (Webex: part of a PUT did not apply), and an error or timeout on the
+ * Webex API (which applies a PUT field group by field group), re-read the record and say which of
+ * the requested fields took effect.
+ */
+async function updateAndCheck(
+  ctx: ToolContext,
+  spec: {
+    entry: RegistryEntry;
+    op: RegistryOperation;
+    id: string;
+    parentId?: string;
+    pathParams: Record<string, string>;
+    json: unknown;
+    expected: Record<string, unknown>;
+    fields: string[];
+    log: CallSpec["log"];
+  },
+): Promise<DeleteOutcome> {
+  const tool = "wxcc-ext-update";
+  const { entry, op, id } = spec;
+  const compare = async () => {
+    const now = await readCurrent(ctx, tool, entry, id, spec.parentId);
+    const record = now ? withoutVolatile(entry, now) : {};
+    const applied: string[] = [];
+    const notApplied: Array<{ field: string; now: unknown }> = [];
+    for (const field of spec.fields) {
+      if (canonicalString(record[field]) === canonicalString(spec.expected[field])) applied.push(field);
+      else notApplied.push({ field, now: record[field] ?? null });
+    }
+    return { applied, notApplied };
+  };
+  let res: ApiResponse;
+  try {
+    res = await callApi(ctx, { tool, phase: "apply", entry, op, id, pathParams: spec.pathParams, json: spec.json, log: spec.log });
+  } catch (err) {
+    if (!isWebexPath(op.path) || !mayHaveApplied(err)) throw err;
+    let check: Awaited<ReturnType<typeof compare>>;
+    try {
+      check = await compare();
+    } catch {
+      throw err;
+    }
+    if (!check.applied.length) throw err;
+    throw new ToolError(
+      `${(err as Error).message}; but these fields did change: ${check.applied.join(", ")}` +
+        (check.notApplied.length ? `; not changed: ${check.notApplied.map((n) => n.field).join(", ")}` : "") +
+        ". Check the record with wxcc-ext-get",
+    );
+  }
+  if (res.status !== 206) return { res };
+  const check = await compare();
+  return {
+    res,
+    note: check.notApplied.length
+      ? `partly applied (HTTP 206): ${check.notApplied.map((n) => n.field).join(", ")} did not change as requested`
+      : "the API answered 206 (partly applied), but a re-read shows every requested field as requested",
+    ...(check.notApplied.length ? { extra: { notApplied: check.notApplied } } : {}),
+  };
 }

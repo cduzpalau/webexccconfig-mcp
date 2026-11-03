@@ -92,7 +92,13 @@ describe("buildUrl", () => {
   it("rejects missing path params and foreign paths", () => {
     expect(() => client.buildUrl("/organization/{orgid}/team/{id}")).toThrow(/missing path parameter: id/);
     expect(() => client.buildUrl("/organization/{orgid}/team/{id}", { id: "" })).toThrow(WxccClientError);
-    expect(() => client.buildUrl("/v1/people/me")).toThrow(/must start with/);
+    expect(() => client.buildUrl("/v2/people/me")).toThrow(/must start with/);
+  });
+
+  it("sends /v1/ paths to the Webex API host", () => {
+    expect(client.buildUrl("/v1/people/{id}", { id: "p 1" }, { callingData: true })).toBe(
+      "https://webexapis.com/v1/people/p%201?callingData=true",
+    );
   });
 
   it("builds flow paths on the same gateway, keeping colon verbs", () => {

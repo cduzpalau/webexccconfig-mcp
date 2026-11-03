@@ -23,6 +23,7 @@ export const TOOLSETS = [
   "digital",
   "ai",
   "flow",
+  "people",
 ] as const;
 export type Toolset = (typeof TOOLSETS)[number];
 
@@ -34,6 +35,9 @@ export const DEFAULT_DEFER_TO_OFFICIAL = [
 ] as const;
 
 export type Mode = "read-only" | "read-write";
+
+/** Webex API host (people, licenses, roles): one for every region. FedRAMP tenants override it. */
+export const DEFAULT_WEBEX_BASE_URL = "https://webexapis.com";
 
 export interface AudioConfig {
   /** Default voice for macOS `say`; undefined means the system default. */
@@ -54,6 +58,8 @@ export interface AppConfig {
   regions: string[];
   /** Fully resolved API base URL, without a trailing slash, e.g. https://api.wxcc-us1.cisco.com */
   baseUrl: string;
+  /** Webex API host for people, licenses and roles (paths start with /v1), e.g. https://webexapis.com */
+  webexBaseUrl: string;
   orgId: string;
   mode: Mode;
   toolsets: Toolset[];
@@ -88,6 +94,7 @@ const fileSchema = z
     region: regionCode.optional(),
     regions: z.array(regionCode).min(1).optional(),
     base_url: z.string().url().optional(),
+    webex_base_url: z.string().url().optional(),
     org_id: z.string().min(1).optional(),
     mode: z.enum(["read-only", "read-write"]).optional(),
     toolsets: z.array(z.enum(TOOLSETS)).optional(),
@@ -187,6 +194,11 @@ export function resolveConfig(raw: unknown, opts: LoadOptions & { configPath?: s
     throw new ConfigError("set `region` in config (e.g. region: us1) or WXCC_REGION in env");
   }
 
+  const webexBaseUrl = normaliseBaseUrl(
+    file.webex_base_url ?? emptyToUndefined(env.WEBEX_API_BASE_URL) ?? DEFAULT_WEBEX_BASE_URL,
+    "webex_base_url",
+  );
+
   const orgId = file.org_id ?? emptyToUndefined(env.WEBEX_ORG_ID);
   if (!orgId) throw new ConfigError("set `org_id` in config or WEBEX_ORG_ID in env");
 
@@ -195,6 +207,7 @@ export function resolveConfig(raw: unknown, opts: LoadOptions & { configPath?: s
     region,
     regions,
     baseUrl,
+    webexBaseUrl,
     orgId,
     mode: file.mode ?? "read-only",
     toolsets: file.toolsets ?? [...TOOLSETS],
@@ -220,20 +233,19 @@ export function resolveConfig(raw: unknown, opts: LoadOptions & { configPath?: s
 }
 
 /** Trims trailing slashes and rejects a `/v1` suffix (paths already carry their version). */
-export function normaliseBaseUrl(input: string): string {
+export function normaliseBaseUrl(input: string, name = "base_url"): string {
   let url: URL;
   try {
     url = new URL(input);
   } catch {
-    throw new ConfigError(`base_url is not a valid URL: ${input}`);
+    throw new ConfigError(`${name} is not a valid URL: ${input}`);
   }
-  if (url.protocol !== "https:") throw new ConfigError("base_url must use https");
-  if (url.search || url.hash) throw new ConfigError("base_url must not contain a query or fragment");
+  if (url.protocol !== "https:") throw new ConfigError(`${name} must use https`);
+  if (url.search || url.hash) throw new ConfigError(`${name} must not contain a query or fragment`);
   const trimmed = url.toString().replace(/\/+$/, "");
   if (/\/v1$/i.test(trimmed)) {
-    throw new ConfigError(
-      "base_url must not end in /v1: use the bare host, e.g. https://api.wxcc-us1.cisco.com",
-    );
+    const example = name === "base_url" ? "https://api.wxcc-us1.cisco.com" : DEFAULT_WEBEX_BASE_URL;
+    throw new ConfigError(`${name} must not end in /v1: use the bare host, e.g. ${example}`);
   }
   return trimmed;
 }

@@ -26,16 +26,19 @@ Design details: see docs/architecture.md. Current work plan: see docs/refactor-p
 - src/config.ts          YAML config + env loading (region + editable regions list, base_url override,
                          org id, mode, toolsets, defer list, log/snapshot/export dirs, audio tools)
 - src/auth.ts            token provider interface (personal token now, OAuth later)
-- src/client.ts          the only place that calls the Webex CC REST API
+- src/client.ts          the only place that calls the Webex CC and Webex REST APIs (/v1/… paths go to
+                         webexapis.com: people, licenses, roles)
 - src/registry/          GENERATED resource registry. Do not hand-edit; run `npm run gen:registry`
 - src/registry-types.ts  hand-written types for the generated registry
 - src/tools/             the generic tools (list_resource_types, describe_resource, list, get,
                          create, update, delete, bulk, action); delete.ts holds the shared delete
-                         step (412 names, timeout re-check) and bulk delete
+                         step (412 names, timeout re-check) and bulk delete; refs.ts resolves
+                         license/role names to ids
 - src/write/             snapshot, merge, diff, operation log, audio conversion, local JSON files
                          (saveTo / bodyFile; never overwrite)
 - scripts/fetch-spec.ts  snapshots the OpenAPI embedded in developer.webex.com into
-                         apireference/openapi/configuration.json and flows.json (manual, needs network)
+                         apireference/openapi/configuration.json, flows.json and webex-admin.json
+                         (manual, needs network)
 - scripts/gen-registry.ts  builds src/registry from apireference/openapi/*.json (offline)
 - scripts/registry-overrides.ts  hand-maintained generator input (keys, aliases, toolsets, quirks)
 - apireference/          source API docs; openapi/ is the generator input, *.md is legacy reference

@@ -7,9 +7,10 @@
  * - A DELETE that times out is re-checked: if the record now reads as 404 the delete counts as done.
  * - Bulk delete reads every record first (dry-run and again on apply), skips records that do not
  *   exist or are system defaults, snapshots each record before its delete, and reports per record.
+ * - Resources with a `me` view on the Webex API (person) never delete the token's own record.
  */
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { formatRefs, WxccApiError, WxccClientError, type ApiResponse, type EntityRef, type QueryValue } from "../client.js";
+import { formatRefs, isWebexPath, WxccApiError, WxccClientError, type ApiResponse, type EntityRef, type QueryValue } from "../client.js";
 import type { RegistryEntry, RegistryOperation } from "../registry-types.js";
 import { fingerprint, planHash } from "../write/confirm.js";
 import { findOp, ToolError } from "./catalog.js";
@@ -17,6 +18,7 @@ import {
   buildPathParams,
   buildQuery,
   callApi,
+  checkWebexOrg,
   isObject,
   jsonResult,
   readCurrent,
@@ -34,10 +36,22 @@ const VERIFY_DELAYS_MS = [2_000, 5_000, 10_000];
 
 const MAX_REFERENCE_TYPES = 5;
 
+/** Result of a write's apply step (deletes, and creates/updates that check what took effect). */
 export interface DeleteOutcome {
   res?: ApiResponse;
   /** Set when the DELETE timed out and a follow-up read showed the record gone. */
   note?: string;
+  /** Extra result fields, e.g. notApplied after a partial update. */
+  extra?: Record<string, unknown>;
+}
+
+export const SELF = "the token's own person: never deleted by this server";
+
+/** The token owner's id when the resource is the Webex person resource (it has a `me` view). */
+export async function selfId(ctx: ToolContext, entry: RegistryEntry): Promise<string | undefined> {
+  const me = findOp(entry, "view", "me");
+  if (!me || !isWebexPath(me.path)) return undefined;
+  return (await checkWebexOrg(ctx)).personId;
 }
 
 /** Sends one DELETE; explains 412s and verifies timeouts. */
@@ -204,7 +218,9 @@ interface Target {
 }
 
 function nameOf(record: unknown): string | undefined {
-  return isObject(record) && typeof record.name === "string" ? record.name : undefined;
+  if (!isObject(record)) return undefined;
+  if (typeof record.name === "string") return record.name;
+  return typeof record.displayName === "string" ? record.displayName : undefined;
 }
 
 function errorText(err: unknown): string {
@@ -231,9 +247,11 @@ export async function bulkDelete(ctx: ToolContext, tool: string, args: BulkDelet
   }
   const query = buildQuery(entry, op, args.query ?? {});
   const concurrency = ctx.config.bulkConcurrency;
+  const self = await selfId(ctx, entry);
 
   // Read every record: snapshots, names, system defaults, and the state the confirm hash pins.
   const reads = await pool(ids, concurrency, async (id): Promise<Target | Skipped> => {
+    if (id === self) return { id, reason: SELF };
     try {
       const record = await readCurrent(ctx, tool, entry, id, args.parentId, args.query);
       if (isSystemDefault(record)) return { id, name: nameOf(record), reason: SYSTEM_DEFAULT };

@@ -5,7 +5,8 @@
  *
  * The configured org id must be in WXCC_SANDBOX_ORG_IDS, or the suite refuses to run. Records it
  * creates are named wxcc_ext_smoke_*, and leftovers from earlier runs are swept afterwards.
- * Every write goes through the real tools (dry-run, then confirm).
+ * Every write goes through the real tools (dry-run, then confirm). Webex people get throwaway
+ * addresses from throwawaymail.app (no sign-up; mailboxes expire after 10 minutes).
  */
 import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -77,7 +78,12 @@ describe.skipIf(!LIVE)("live smoke (sandbox)", () => {
       snapshotDir: mkdtempSync(join(tmpdir(), "wxcc-ext-live-snap-")),
       exportDir: mkdtempSync(join(tmpdir(), "wxcc-ext-live-export-")),
     };
-    const client = new WxccClient({ baseUrl: config.baseUrl, orgId: config.orgId, tokenProvider: tokens });
+    const client = new WxccClient({
+      baseUrl: config.baseUrl,
+      webexBaseUrl: config.webexBaseUrl,
+      orgId: config.orgId,
+      tokenProvider: tokens,
+    });
     const [a, b] = InMemoryTransport.createLinkedPair();
     await buildServer({ config, client }).connect(b);
     mcp = new Client({ name: "live-smoke", version: "0" });
@@ -100,6 +106,13 @@ describe.skipIf(!LIVE)("live smoke (sandbox)", () => {
     if (!flows.isError) {
       for (const f of flows.json().data as Array<{ id: string; name?: string }>) {
         if (f.name?.startsWith(PREFIX) && !created.some((c) => c.id === f.id)) created.push({ resource: "flow", id: f.id });
+      }
+    }
+    // Not query.displayName: the People search index lags creates and deletes by minutes.
+    const people = await call("wxcc-ext-list", { resource: "person", pageSize: 1000 });
+    if (!people.isError) {
+      for (const p of people.json().data as Array<{ id: string; displayName?: string }>) {
+        if (p.displayName?.startsWith(PREFIX) && !created.some((c) => c.id === p.id)) created.push({ resource: "person", id: p.id });
       }
     }
     created.sort((a, b) => Number(b.resource === "skill-profile") - Number(a.resource === "skill-profile"));
@@ -344,6 +357,52 @@ describe.skipIf(!LIVE)("live smoke (sandbox)", () => {
     expect(bulk, JSON.stringify(bulk)).toMatchObject({ succeededCount: 2, failedCount: 0 });
     for (const id of copies) created.splice(created.findIndex((c) => c.id === id), 1);
   }, 240_000);
+
+  it("runs Webex people through create → license by name → remove it → bulk delete", async () => {
+    const mailbox = async (): Promise<string> => {
+      const r = await fetch("https://throwawaymail.app/api/mailboxes", { method: "POST", signal: AbortSignal.timeout(20_000) });
+      expect(r.ok).toBe(true);
+      return ((await r.json()) as { address: string }).address;
+    };
+    const CC = "contact center standard agent"; // the sandbox writes it "Contact center Standard Agent"
+    const createPerson = async (name: string) => {
+      const args = { resource: "person", body: { emails: [await mailbox()], displayName: name, firstName: "wxcc", lastName: "smoke" } };
+      const dry = (await call("wxcc-ext-create", args)).json();
+      expect(dry.warnings.join(" ")).toContain("no licenses given");
+      const res = await call("wxcc-ext-create", { ...args, confirm: dry.confirm });
+      expect(res.isError, res.text).toBe(false);
+      const id = res.json().result.id as string;
+      created.push({ resource: "person", id });
+      return id;
+    };
+    const licenseIds = async (id: string) => (await call("wxcc-ext-get", { resource: "person", id })).json().licenses as string[];
+
+    const p1 = await createPerson(`${RUN}_p1`);
+    const defaults = await licenseIds(p1);
+
+    const add = { resource: "person", id: p1, changes: { licenses: [...defaults, CC] } };
+    const dry = (await call("wxcc-ext-update", add)).json();
+    expect(dry.refs.licenses.after.some((l: string) => /^Contact center Standard Agent \(/i.test(l))).toBe(true);
+    const added = (await call("wxcc-ext-update", { ...add, confirm: dry.confirm })).json();
+    expect(added.applied).toBe(true);
+    const withCc = await licenseIds(p1);
+    expect(withCc.length).toBe(defaults.length + 1);
+
+    const removed = await apply("wxcc-ext-update", { resource: "person", id: p1, changes: { licenses: defaults } });
+    expect(removed.applied).toBe(true);
+    expect((await licenseIds(p1)).sort()).toEqual([...defaults].sort());
+
+    const p2 = await createPerson(`${RUN}_p2`);
+    const missing = Buffer.from("ciscospark://us/PEOPLE/00000000-0000-0000-0000-000000000000").toString("base64").replace(/=+$/, "");
+    const bulk = { resource: "person", operation: "delete", ids: [p1, p2, missing] };
+    const bulkDry = (await call("wxcc-ext-bulk", bulk)).json();
+    expect(bulkDry.delete.map((d: { id: string }) => d.id).sort()).toEqual([p1, p2].sort());
+    expect(bulkDry.skipped).toEqual([{ id: missing, reason: "not found" }]);
+    const done = (await call("wxcc-ext-bulk", { ...bulk, confirm: bulkDry.confirm })).json();
+    expect(done).toMatchObject({ succeededCount: 2, failedCount: 0, skippedCount: 1 });
+    for (const id of [p1, p2]) created.splice(created.findIndex((c) => c.id === id), 1);
+    expect((await call("wxcc-ext-get", { resource: "person", id: p1 })).text).toMatch(/^not found/);
+  }, 180_000);
 
   it("reads singletons without an id", async () => {
     for (const resource of ["organization-setting", "tenant-configuration"]) {
