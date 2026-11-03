@@ -9,23 +9,26 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import type { QueryValue } from "../client.js";
+import type { ApiResponse, QueryValue } from "../client.js";
 import type { RegistryEntry, RegistryOperation } from "../registry-types.js";
 import { fingerprint, planHash } from "../write/confirm.js";
 import type { FileInput, UploadKind } from "../write/files.js";
 import { loadJson, outline } from "../write/jsonfile.js";
 import { changedFields, deepMerge, diff, isPlainObject, omit, presentChanges, type Change } from "../write/merge.js";
 import { actionNames, findOp, ToolError } from "./catalog.js";
+import { bulkDelete, isSystemDefault, sendDelete, SYSTEM_DEFAULT, type DeleteOutcome } from "./delete.js";
 import {
   buildPathParams,
   buildQuery,
   callApi,
   handler,
   jsonResult,
+  label,
   opLabel,
+  readCurrent,
   shapeResult,
-  sharedQuery,
   stripLinks,
+  type CallSpec,
   type QueryInput,
   type ToolContext,
 } from "./exec.js";
@@ -59,6 +62,8 @@ interface Plan {
   showBody?: boolean;
   /** The body came from this local file: the dry-run shows an outline instead of the body. */
   bodyFile?: string;
+  /** Replaces the plain API call on apply (deletes: 412 explanations, timeout checks). */
+  send?: (log: CallSpec["log"]) => Promise<DeleteOutcome>;
 }
 
 function hashOf(plan: Plan): string {
@@ -82,11 +87,6 @@ function hashOf(plan: Plan): string {
 
 function baseOf(plan: Plan): string {
   return plan.before.map((b) => fingerprint(b.data)).join(",");
-}
-
-function label(record: unknown): string {
-  if (!isPlainObject(record)) return "";
-  return typeof record.name === "string" ? ` "${record.name}"` : "";
 }
 
 async function execute(ctx: ToolContext, plan: Plan, confirm: string | undefined): Promise<CallToolResult> {
@@ -153,8 +153,8 @@ async function execute(ctx: ToolContext, plan: Plan, confirm: string | undefined
     try {
       snapshot =
         plan.before.length === 1
-          ? ctx.snapshots.save(plan.entry.key, plan.before[0]!.id, plan.before[0]!.data)
-          : ctx.snapshots.save(plan.entry.key, "bulk", { items: plan.before });
+          ? await ctx.snapshots.save(plan.entry.key, plan.before[0]!.id, plan.before[0]!.data)
+          : await ctx.snapshots.save(plan.entry.key, "bulk", { items: plan.before });
     } catch (err) {
       throw new ToolError(`cannot write snapshot (snapshot_dir ${ctx.config.snapshotDir}): ${(err as Error).message}`);
     }
@@ -168,26 +168,33 @@ async function execute(ctx: ToolContext, plan: Plan, confirm: string | undefined
     form.append(plan.upload.jsonPart, new Blob([JSON.stringify(plan.upload.info)], { type: "application/json" }));
   }
 
-  const res = await callApi(ctx, {
-    tool: plan.tool,
-    phase: "apply",
-    entry: plan.entry,
-    op: plan.op,
-    id: plan.id,
-    pathParams: plan.pathParams,
-    query: plan.query,
-    json: plan.json,
-    form,
-    log: { changedFields: fields, snapshot, ...(plan.bodyFile ? { file: plan.bodyFile } : {}) },
-  });
+  const log = { changedFields: fields, snapshot, ...(plan.bodyFile ? { file: plan.bodyFile } : {}) };
+  const out: DeleteOutcome = plan.send
+    ? await plan.send(log)
+    : {
+        res: await callApi(ctx, {
+          tool: plan.tool,
+          phase: "apply",
+          entry: plan.entry,
+          op: plan.op,
+          id: plan.id,
+          pathParams: plan.pathParams,
+          query: plan.query,
+          json: plan.json,
+          form,
+          log,
+        }),
+      };
   ctx.pending.forget(hash);
+  const res: ApiResponse | undefined = out.res;
   return jsonResult({
     applied: true,
     summary: plan.summary,
-    httpStatus: res.status,
-    ...(res.trackingId ? { trackingId: res.trackingId } : {}),
+    ...(res ? { httpStatus: res.status } : {}),
+    ...(res?.trackingId ? { trackingId: res.trackingId } : {}),
+    ...(out.note ? { note: out.note } : {}),
     ...(snapshot ? { snapshot } : {}),
-    result: summariseResult(res.data, ctx.config.maxResponseChars),
+    ...(res ? { result: summariseResult(res.data, ctx.config.maxResponseChars) } : {}),
   });
 }
 
@@ -217,28 +224,6 @@ function summariseResult(data: unknown, maxChars: number): unknown {
     return { id: clean.id, name: clean.name, version: clean.version, note: "full record omitted; use wxcc-ext-get" };
   }
   return `${text.slice(0, 2000)}…`;
-}
-
-/**
- * Reads the current record through the resource's get op (logged as a read). `query` carries the
- * caller's query values that the get op also takes (e.g. flowType: SUBFLOW).
- */
-async function readCurrent(
-  ctx: ToolContext,
-  tool: string,
-  entry: RegistryEntry,
-  id: string,
-  parentId: string | undefined,
-  query?: QueryInput,
-): Promise<Record<string, unknown> | undefined> {
-  const getOp = findOp(entry, "get");
-  if (!getOp) return undefined;
-  const pathParams = buildPathParams(entry, getOp, { id, parentId });
-  const getQuery = buildQuery(entry, getOp, sharedQuery(getOp, query));
-  const res = await callApi(ctx, { tool, phase: "read", entry, op: getOp, id, pathParams, query: getQuery });
-  const data = stripLinks(res.data);
-  if (!isPlainObject(data)) throw new ToolError(`${entry.key} ${id}: unexpected response when reading the current record`);
-  return data;
 }
 
 async function singletonId(ctx: ToolContext, tool: string, entry: RegistryEntry): Promise<string> {
@@ -302,7 +287,8 @@ const file = z
   .optional()
   .describe("Upload: local path, or text to speak (audio)");
 const record = z.record(z.string(), z.unknown());
-const queryArg = z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]));
+/** Query values; buildQuery checks names, types and enums against the op. */
+const queryArg = record;
 const bodyFile = z.string().optional().describe("Local .json file as the body (relative: export_dir)");
 
 /** Exactly one of an inline body or a bodyFile; the file is read now so the plan hash covers it. */
@@ -456,6 +442,9 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
       if (!op) throw new ToolError(`${entry.key} does not support delete`);
       const query = buildQuery(entry, op, args.query ?? {});
       const current = await readCurrent(ctx, tool, entry, args.id, args.parentId, args.query);
+      const warnings = isSystemDefault(current)
+        ? [SYSTEM_DEFAULT]
+        : ["if other entities use this record the API refuses, and the error names them"];
       return execute(
         ctx,
         {
@@ -468,7 +457,9 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
           before: current ? [{ id: args.id, data: current }] : [],
           changes: [{ path: "(record)", before: current ? `${args.id}${label(current)}` : args.id }],
           summary: `delete ${entry.key} ${args.id}${label(current)}`,
-          warnings: ["if other entities use this record the API refuses with their names; check view: references first"],
+          warnings,
+          send: (log) =>
+            sendDelete(ctx, { tool, entry, op, id: args.id, parentId: args.parentId, query, readQuery: args.query, log }),
         },
         args.confirm,
       );
@@ -479,12 +470,17 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
     "wxcc-ext-bulk",
     {
       description:
-        "Save (create/update) or delete many records in one request. SAVE items with an id are merged with the " +
-        "current record. operation patch sends partial items. Dry-runs unless confirm is given.",
+        "Many records at once; dry-runs unless confirm is given. save: one bulk request, items with an id merge with " +
+        "the current record. patch: partial items. delete: ids, deleted one by one with per-record results.",
       inputSchema: {
         resource,
-        operation: z.enum(["save", "patch"]).optional().describe("save (default) or patch"),
-        items: z.array(z.object({ action: z.enum(["SAVE", "DELETE"]).optional(), item: record })).min(1),
+        operation: z.enum(["save", "patch", "delete"]).optional().describe("Default save"),
+        items: z
+          .array(z.object({ action: z.enum(["SAVE", "DELETE"]).optional(), id: z.string().optional(), item: record.optional() }))
+          .min(1)
+          .optional(),
+        ids: z.array(z.string()).min(1).optional().describe("delete: record ids"),
+        query: queryArg.optional().describe("delete: query for each DELETE"),
         parentId,
         confirm,
       },
@@ -492,18 +488,38 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
     handler(
       ctx,
       "wxcc-ext-bulk",
-      async (args: {
-        resource: string;
-        operation?: "save" | "patch";
-        items: Array<{ action?: "SAVE" | "DELETE"; item: Record<string, unknown> }>;
-        parentId?: string;
-        confirm?: string;
-      }) => {
+      async (
+        args: {
+          resource: string;
+          operation?: "save" | "patch" | "delete";
+          items?: Array<{ action?: "SAVE" | "DELETE"; id?: string; item?: Record<string, unknown> }>;
+          ids?: string[];
+          query?: QueryInput;
+          parentId?: string;
+          confirm?: string;
+        },
+        extra,
+      ) => {
         const tool = "wxcc-ext-bulk";
+        if (args.operation === "delete") {
+          if (args.items?.some((i) => i.action === "SAVE")) throw new ToolError("operation delete takes ids, not SAVE items");
+          const fromItems = (args.items ?? []).map((i) => i.id ?? (typeof i.item?.id === "string" ? i.item.id : undefined));
+          if (fromItems.some((id) => !id)) throw new ToolError("operation delete: every item needs an id");
+          const ids = [...(args.ids ?? []), ...(fromItems as string[])];
+          return bulkDelete(ctx, tool, { resource: args.resource, ids, parentId: args.parentId, query: args.query, confirm: args.confirm }, extra);
+        }
+        if (args.ids) throw new ToolError("ids is for operation delete; save and patch take items");
+        if (args.query) throw new ToolError("query is for operation delete");
+        if (!args.items) throw new ToolError(`operation ${args.operation ?? "save"} needs items`);
         const entry = ctx.catalog.resolve(args.resource);
         const patch = args.operation === "patch";
         const op = findOp(entry, patch ? "bulkPatch" : "bulkSave");
-        if (!op) throw new ToolError(`${entry.key} does not support bulk ${patch ? "patch" : "save"}`);
+        if (!op) {
+          throw new ToolError(
+            `${entry.key} does not support bulk ${patch ? "patch" : "save"}` +
+              (findOp(entry, "delete") ? "; to delete many records use operation delete with ids" : ""),
+          );
+        }
         const orgId = ctx.client.orgId;
         const before: Plan["before"] = [];
         const changes: Change[] = [];
@@ -514,11 +530,14 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
           const itemIdentifier = i + 1;
           const action = input.action ?? "SAVE";
           if (patch && input.action === "DELETE") throw new ToolError("operation patch does not take DELETE items");
-          const id = typeof input.item.id === "string" ? input.item.id : undefined;
-          if ((action === "DELETE" || patch) && !id) throw new ToolError(`item ${itemIdentifier}: ${patch ? "patch" : "DELETE"} items need item.id`);
+          const given = input.item ?? {};
+          if (action !== "DELETE" && !input.item) throw new ToolError(`item ${itemIdentifier}: ${patch ? "patch" : "SAVE"} items need item`);
+          const id = input.id ?? (typeof given.id === "string" ? given.id : undefined);
+          if ((action === "DELETE" || patch) && !id) throw new ToolError(`item ${itemIdentifier}: ${patch ? "patch" : "DELETE"} items need an id`);
           const current = id ? await readCurrent(ctx, tool, entry, id, args.parentId) : undefined;
           if (current) before.push({ id: id!, data: current });
-          const changesIn = dropReadOnly(entry, input.item, warnings);
+          if (action === "DELETE" && isSystemDefault(current)) warnings.push(`item ${itemIdentifier} (${id}): ${SYSTEM_DEFAULT}`);
+          const changesIn = dropReadOnly(entry, id ? { ...given, id } : given, warnings);
 
           let item: Record<string, unknown>;
           if (action === "DELETE") {

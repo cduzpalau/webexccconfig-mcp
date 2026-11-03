@@ -347,6 +347,36 @@ generator excludes them through the allowlist.
   - Snapshot file names collided when two writes to the same record landed in the same millisecond. They now
     get a numeric suffix.
 
+## g. v2.2: bulk delete, reliable confirms, refused and slow deletes
+Request: fix the problems found while deleting about 500 stale records (auxiliary codes, desktop and skill
+profiles, teams, entry points, queues, flows) on a production tenant. Every point was checked against the code
+and the eu2 sandbox before changing anything.
+
+| Report | Finding | Change |
+|---|---|---|
+| Confirm on bulk delete of desktop/skill profiles always fails | Confirmed. The hash covered the full record, including arrays; `activeSkills` came back in 2–4 orders over 8 reads. Skill profiles have no `version`, so single deletes and updates failed too | `planHash` puts array elements in a fixed order (`canonicalString`) |
+| Bulk DELETE needs `item: {}` | Confirmed (schema) | items take `id`; `item` is optional for DELETE |
+| No bulk delete for flows; native bulk is all-or-nothing | Flows have no `/bulk`. A native skill batch returned 207 per item, so behaviour varies by resource | `operation: "delete"`: client-side fan-out over the single delete, per-record results, up to 50 ids, `bulk_concurrency` (default 4), progress notifications |
+| Skip system defaults | `systemDefault: true` is present on e.g. Team-1 (absent otherwise) | Skipped in the bulk dry-run, warned on single delete |
+| Flow deletes time out at 30 s but finish | Not reproducible on demand (unpublished copies delete in ~150 ms) | Registry `timeoutMs` (flow delete 90 s); timed-out deletes re-read the record and count a 404 as deleted |
+| Async snapshots | Snapshot writes were sync | `SnapshotStore.save` is async |
+| 412 hides the referring names | Two causes. Configuration API: `{error:{reason, referencedEntities:["skill-profile"]}}` with no `message[]`. Flows API: its own shape `{errorCode, errorMessage, dependentFlows, dependentSubflows, dependentEPsAndRSs, dependentRcs:[{id,name}]}`, not parsed at all, hence "check incoming references" | Client parses both shapes; deletes fill in names from the references view when the body has none |
+| `view: "references"` for flows | No such endpoint in the Flows spec. Entry points carry `flowId` and accept `filter=flowId=="<id>"` (verified) | Not added as a view: the refused delete lists all dependents, and the flow description points to the entry-point filter |
+
+**Not done:** automatic fallback from a failed native bulk request to per-item requests. A batch can mix SAVE
+and DELETE items, and replaying part of it would not be atomic with what the API already applied.
+`operation: "delete"` covers the cleanup case without guessing.
+
+**Tool schema budget.** The new bulk parameters pushed the read-write tool list over 8 KB. The `query`
+parameters on delete, bulk and action are now plain objects in the schema, since `buildQuery` validates
+names, types and enums anyway.
+
+**Result (2026-11-02):** `npm test` passes 217 tests. The live suite passes 10 of 10 on the eu2 sandbox,
+including:
+- deleting two skill profiles with three reordered `activeSkills` each through confirm
+- a skill batch with one deletable, one referenced (412 naming both profiles) and one missing id
+- a bulk delete of two flow copies
+
 ## e. Open questions
 None at the moment. Anything new found during a phase gets added here.
 

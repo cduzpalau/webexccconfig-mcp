@@ -22,6 +22,8 @@ export interface RequestOptions {
   json?: unknown;
   /** multipart/form-data request body (audio uploads). Mutually exclusive with `json`. */
   form?: FormData;
+  /** Raises the client's timeout for this request (slow operations such as flow deletes). */
+  timeoutMs?: number;
 }
 
 export interface ApiResponse<T = unknown> {
@@ -41,6 +43,8 @@ export class WxccApiError extends Error {
   readonly trackingId?: string;
   readonly key?: string;
   readonly references: EntityRef[];
+  /** Entity types that refer to the record (412), e.g. ["skill-profile"]. */
+  readonly referencedEntities: string[];
   readonly retryAfterSeconds?: number;
 
   constructor(
@@ -50,6 +54,7 @@ export class WxccApiError extends Error {
       trackingId?: string;
       key?: string;
       references?: EntityRef[];
+      referencedEntities?: string[];
       retryAfterSeconds?: number;
     },
   ) {
@@ -59,15 +64,20 @@ export class WxccApiError extends Error {
     this.trackingId = details.trackingId;
     this.key = details.key;
     this.references = details.references ?? [];
+    this.referencedEntities = details.referencedEntities ?? [];
     this.retryAfterSeconds = details.retryAfterSeconds;
   }
 }
 
 /** Raised for network failures, timeouts and invalid requests built by the caller. */
 export class WxccClientError extends Error {
-  constructor(message: string) {
+  /** The request was sent but no response arrived in time: a write may still have happened. */
+  readonly timedOut: boolean;
+
+  constructor(message: string, timedOut = false) {
     super(message);
     this.name = "WxccClientError";
+    this.timedOut = timedOut;
   }
 }
 
@@ -141,16 +151,17 @@ export class WxccClient {
       body = opts.form; // fetch sets the multipart boundary
     }
 
+    const timeoutMs = Math.max(this.#timeoutMs, opts.timeoutMs ?? 0);
     let res: Response;
     try {
       res = await this.#fetch(url, {
         method: opts.method,
         headers,
         body,
-        signal: AbortSignal.timeout(this.#timeoutMs),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (err) {
-      throw new WxccClientError(redact(describeNetworkError(err, label, this.#timeoutMs), token));
+      throw new WxccClientError(redact(describeNetworkError(err, label, timeoutMs), token), isTimeout(err));
     }
 
     const data = await readBody(res);
@@ -171,14 +182,41 @@ async function readBody(res: Response): Promise<unknown> {
   }
 }
 
-/** Documented error shape. Fields are treated as untrusted: the live API sends `key` as a number. */
+/**
+ * Error shapes. Fields are treated as untrusted: the live API sends `key` as a number.
+ * Configuration API: { trackingId, error: { key, reason, message[], referencedEntities? } }.
+ * Flows API: { errorCode, errorMessage, dependentFlows[], dependentSubflows[], dependentEPsAndRSs[],
+ * dependentRcs[] } (a 412 on delete lists what still uses the flow).
+ */
 interface ApiErrorBody {
   trackingId?: unknown;
   error?: {
     key?: unknown;
     reason?: unknown;
     message?: Array<{ description?: unknown; entity?: unknown; references?: Array<Record<string, unknown>> }>;
+    referencedEntities?: unknown;
   };
+  errorMessage?: unknown;
+}
+
+/** Flow delete 412: dependents by field, with the entity type shown for each. */
+const FLOW_DEPENDENTS: Record<string, string> = {
+  dependentFlows: "flow",
+  dependentSubflows: "subflow",
+  dependentEPsAndRSs: "entry point / routing strategy",
+  dependentRcs: "entry point",
+};
+
+function flowDependents(body: Record<string, unknown>, token: string): EntityRef[] {
+  return Object.entries(FLOW_DEPENDENTS).flatMap(([field, entity]) => {
+    const list = body[field];
+    if (!Array.isArray(list)) return [];
+    return list.flatMap((d): EntityRef[] => {
+      if (typeof d === "string") return [{ name: redact(d, token), entity }];
+      if (!isObject(d)) return [];
+      return [{ id: redactOpt(d.id, token), name: redactOpt(d.name, token), entity }];
+    });
+  });
 }
 
 function toApiError(
@@ -192,16 +230,23 @@ function toApiError(
   const trackingId = redactOpt(body.trackingId, token) ?? headerTrackingId;
   const messages = Array.isArray(body.error?.message) ? body.error.message.filter(isObject) : [];
   const descriptions = messages.map((m) => str(m.description)).filter((d): d is string => !!d);
-  const references = messages.flatMap((m) =>
-    (Array.isArray(m.references) ? m.references.filter(isObject) : []).map((r) => ({
-      id: redactOpt(r.id, token),
-      name: redactOpt(r.name, token),
-      entity: redactOpt(r.entity ?? m.entity, token),
-    })),
-  );
+  const references = [
+    ...messages.flatMap((m) =>
+      (Array.isArray(m.references) ? m.references.filter(isObject) : []).map((r) => ({
+        id: redactOpt(r.id, token),
+        name: redactOpt(r.name, token),
+        entity: redactOpt(r.entity ?? m.entity, token),
+      })),
+    ),
+    ...(isObject(data) ? flowDependents(data, token) : []),
+  ];
+  const referencedEntities = (Array.isArray(body.error?.referencedEntities) ? body.error.referencedEntities : [])
+    .map((e) => redactOpt(e, token))
+    .filter((e): e is string => !!e);
   const desc =
     descriptions.join("; ") ||
     str(body.error?.reason) ||
+    (references.length ? "" : truncate(str(body.errorMessage) ?? "", 300)) ||
     (typeof data === "string" ? truncate(data.trim(), 300) : "");
   const retryAfterSeconds = res.status === 429 ? parseRetryAfter(res.headers.get("retry-after")) : undefined;
 
@@ -225,9 +270,11 @@ function toApiError(
     case 409:
       message = `duplicate: ${desc || "a similar entity already exists"}`;
       break;
-    case 412:
-      message = `in use by other entities: ${formatRefs(references) || desc || "check incoming references"}`;
+    case 412: {
+      const kinds = referencedEntities.length ? ` (${referencedEntities.join(", ")})` : "";
+      message = `in use by other entities${kinds}: ${formatRefs(references) || desc || "check incoming references"}`;
       break;
+    }
     case 429:
       message =
         retryAfterSeconds !== undefined
@@ -247,11 +294,12 @@ function toApiError(
     trackingId,
     key: redactOpt(body.error?.key, token),
     references,
+    referencedEntities,
     retryAfterSeconds,
   });
 }
 
-function formatRefs(refs: EntityRef[]): string {
+export function formatRefs(refs: EntityRef[]): string {
   if (!refs.length) return "";
   const shown = refs.slice(0, MAX_REFS_IN_MESSAGE).map((r) => {
     const name = r.name ?? r.id ?? "?";
@@ -271,8 +319,12 @@ function parseRetryAfter(value: string | null): number | undefined {
   return Math.max(0, Math.ceil((date - Date.now()) / 1000));
 }
 
+function isTimeout(err: unknown): boolean {
+  return err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+}
+
 function describeNetworkError(err: unknown, label: string, timeoutMs: number): string {
-  if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
+  if (isTimeout(err)) {
     return `request timed out after ${timeoutMs}ms: ${label}`;
   }
   const cause = err instanceof Error ? (err.cause as { code?: string; message?: string } | undefined) : undefined;

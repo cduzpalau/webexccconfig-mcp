@@ -54,6 +54,9 @@ describe("confirmation", () => {
     expect(stableStringify({ b: 1, a: { d: [1, { y: 2, x: 1 }], c: undefined } })).toBe('{"a":{"d":[1,{"x":1,"y":2}]},"b":1}');
     expect(planHash({ a: 1, b: 2 })).toBe(planHash({ b: 2, a: 1 }));
     expect(planHash({ a: 1 })).not.toBe(planHash({ a: 2 }));
+    // The API returns some arrays in a different order on each read.
+    expect(planHash({ s: [{ id: "a" }, { id: "b" }], n: [1, 2] })).toBe(planHash({ n: [2, 1], s: [{ id: "b" }, { id: "a" }] }));
+    expect(planHash({ s: ["a", "b"] })).not.toBe(planHash({ s: ["a", "c"] }));
   });
   it("fingerprints by version, then lastUpdatedTime, then content", () => {
     expect(fingerprint({ version: 3, lastUpdatedTime: 9 })).toBe("v3");
@@ -100,14 +103,14 @@ describe("json files", () => {
 });
 
 describe("SnapshotStore", () => {
-  it("writes per resource/id with a timestamped name and sanitised segments", () => {
+  it("writes per resource/id with a timestamped name and sanitised segments", async () => {
     const dir = mkdtempSync(join(tmpdir(), "wxcc-ext-snap-"));
     const store = new SnapshotStore(dir, () => new Date("2026-10-30T12:34:56.789Z"));
-    const p = store.save("team", "../../etc", { id: "x" });
+    const p = await store.save("team", "../../etc", { id: "x" });
     expect(p).toBe(join(dir, "team", ".._.._etc", "2026-10-30T12-34-56.789Z.json"));
     expect(JSON.parse(readFileSync(p, "utf8"))).toEqual({ id: "x" });
     // Same millisecond: a new file with a suffix, never an overwrite.
-    const second = store.save("team", "../../etc", { id: "y" });
+    const second = await store.save("team", "../../etc", { id: "y" });
     expect(second).toBe(join(dir, "team", ".._.._etc", "2026-10-30T12-34-56.789Z-1.json"));
     expect(JSON.parse(readFileSync(p, "utf8"))).toEqual({ id: "x" });
   });

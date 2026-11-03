@@ -33,7 +33,10 @@ defer_to_official: []
 # Where relative saveTo (exports) and bodyFile (imports) paths resolve.
 # export_dir: ~/.wxcc-ext/exports
 
-# request_timeout_ms: 30000
+# request_timeout_ms: 30000   # flow deletes always get at least 90000
+
+# Parallel requests when wxcc-ext-bulk deletes records one by one (operation: delete), 1 to 10.
+# bulk_concurrency: 4
 
 # Tool responses above this size are trimmed with a hint to use page/pageSize/attributes.
 # max_response_chars: 50000

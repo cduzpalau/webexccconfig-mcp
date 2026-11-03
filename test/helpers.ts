@@ -15,7 +15,7 @@ export const TOKEN = "fake-token-harness";
 export const ORG = "org-1";
 export const BASE = "https://api.wxcc-us1.cisco.com";
 
-export type Route = (url: URL, init: RequestInit) => Response | Promise<Response> | undefined;
+export type Route = (url: URL, init: RequestInit) => Response | Promise<Response | undefined> | undefined;
 
 export function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {
   return new Response(body === undefined ? null : JSON.stringify(body), {
@@ -24,7 +24,9 @@ export function json(status: number, body: unknown, headers: Record<string, stri
   });
 }
 
-export async function startServer(opts: { config?: Partial<ConfigFile>; routes?: Route[]; files?: FileProcessor } = {}) {
+export async function startServer(
+  opts: { config?: Partial<ConfigFile>; routes?: Route[]; files?: FileProcessor; sleep?: (ms: number) => Promise<void> } = {},
+) {
   const logDir = mkdtempSync(join(tmpdir(), "wxcc-ext-log-"));
   const snapshotDir = mkdtempSync(join(tmpdir(), "wxcc-ext-snap-"));
   const config = resolveConfig(
@@ -46,7 +48,9 @@ export async function startServer(opts: { config?: Partial<ConfigFile>; routes?:
     tokenProvider: new StaticTokenProvider(TOKEN),
     fetch: fetchMock as unknown as typeof fetch,
   });
-  const server = buildServer({ config, client, files: opts.files });
+  const sleeps: number[] = [];
+  const sleep = opts.sleep ?? (async (ms: number) => void sleeps.push(ms));
+  const server = buildServer({ config, client, files: opts.files, sleep });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
   const mcp = new Client({ name: "test", version: "0" });
@@ -72,7 +76,7 @@ export async function startServer(opts: { config?: Partial<ConfigFile>; routes?:
   /** Non-GET requests sent to the API. */
   const writes = () => fetchMock.mock.calls.filter(([, init]) => init.method !== "GET");
 
-  return { mcp, call, fetchMock, writes, logDir, snapshotDir, logLines, rawLog, config, close: () => mcp.close() };
+  return { mcp, call, fetchMock, writes, logDir, snapshotDir, logLines, rawLog, config, sleeps, close: () => mcp.close() };
 }
 
 /** Route helper: matches method and path (after the org prefix) exactly. */

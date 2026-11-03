@@ -16,8 +16,28 @@ export function stableStringify(value: unknown): string {
   return JSON.stringify(value) ?? "null";
 }
 
+/**
+ * Like stableStringify, but arrays are also put in a fixed order (by each element's canonical
+ * string). WxCC returns some arrays (activeSkills, loginVoiceOptions, ...) in a different order on
+ * every read, so an order-sensitive hash would never match between dry-run and apply.
+ */
+export function canonicalString(value: unknown): string {
+  if (Array.isArray(value)) {
+    const items = value.map(canonicalString).sort();
+    return `[${items.join(",")}]`;
+  }
+  if (typeof value === "object" && value !== null) {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalString(v)}`).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+/** Order-insensitive for object keys and array elements: see canonicalString. */
 export function planHash(plan: unknown): string {
-  return createHash("sha256").update(stableStringify(plan)).digest("hex").slice(0, 16);
+  return createHash("sha256").update(canonicalString(plan)).digest("hex").slice(0, 16);
 }
 
 /** Identifies the state a plan was computed from: the record's version, else its content. */

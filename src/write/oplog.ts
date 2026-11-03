@@ -28,6 +28,10 @@ export interface OpLogEntry {
   snapshot?: string;
   /** Local JSON file written (saveTo) or read (bodyFile). */
   file?: string;
+  /** Records covered by a bulk delete dry-run or summary line. */
+  count?: number;
+  /** Outcome detail, e.g. a timed-out delete verified by a follow-up read. */
+  note?: string;
 }
 
 export interface OperationLogOptions {

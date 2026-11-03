@@ -88,7 +88,8 @@ describe.skipIf(!LIVE)("live smoke (sandbox)", () => {
     if (!mcp) return;
     for (const restore of restores.reverse()) await restore().catch((e: Error) => console.error(`restore failed: ${e.message}`));
     // Delete what this run created, then sweep leftovers of earlier runs.
-    for (const resource of ["global-variable", "work-type", "audio-file"]) {
+    // Skill profiles before skills: a profile refers to its skills.
+    for (const resource of ["skill-profile", "global-variable", "work-type", "audio-file", "skill"]) {
       const res = await call("wxcc-ext-list", { resource, search: PREFIX, pageSize: 100 });
       if (res.isError) continue;
       for (const r of res.json().data as Array<{ id: string; name?: string }>) {
@@ -101,6 +102,7 @@ describe.skipIf(!LIVE)("live smoke (sandbox)", () => {
         if (f.name?.startsWith(PREFIX) && !created.some((c) => c.id === f.id)) created.push({ resource: "flow", id: f.id });
       }
     }
+    created.sort((a, b) => Number(b.resource === "skill-profile") - Number(a.resource === "skill-profile"));
     for (const c of created) {
       const dry = await call("wxcc-ext-delete", { resource: c.resource, id: c.id });
       if (!dry.isError) await call("wxcc-ext-delete", { resource: c.resource, id: c.id, confirm: dry.json().confirm });
@@ -217,6 +219,50 @@ describe.skipIf(!LIVE)("live smoke (sandbox)", () => {
     }
   }, 180_000);
 
+  it("bulk-deletes one by one: profiles with reordered arrays, then skills with per-record results", async () => {
+    const skillIds: string[] = [];
+    for (const n of [1, 2, 3, 4]) {
+      const name = `${RUN}_skill_${n}`;
+      await apply("wxcc-ext-create", {
+        resource: "skill",
+        body: { name, active: true, serviceLevelThreshold: 30, skillType: "BOOLEAN" },
+      });
+      const id = await findByName("skill", name);
+      expect(id).toBeDefined();
+      skillIds.push(id!);
+      created.push({ resource: "skill", id: id! });
+    }
+    const profileIds: string[] = [];
+    for (const n of [1, 2]) {
+      const name = `${RUN}_profile_${n}`;
+      await apply("wxcc-ext-create", {
+        resource: "skill-profile",
+        body: { name, activeSkills: skillIds.slice(0, 3).map((skillId) => ({ skillId, booleanValue: true })) },
+      });
+      const id = await findByName("skill-profile", name);
+      expect(id).toBeDefined();
+      profileIds.push(id!);
+      created.push({ resource: "skill-profile", id: id! });
+    }
+
+    // Skill 1 is used by both profiles, skill 4 is free, the third id does not exist.
+    const missing = "00000000-0000-0000-0000-000000000000";
+    const skills = await apply("wxcc-ext-bulk", { resource: "skill", operation: "delete", ids: [skillIds[0], skillIds[3], missing] });
+    expect(skills, JSON.stringify(skills)).toMatchObject({ succeededCount: 1, failedCount: 1, skippedCount: 1 });
+    expect(skills.succeeded[0].id).toBe(skillIds[3]);
+    expect(skills.failed[0]).toMatchObject({ id: skillIds[0], httpStatus: 412 });
+    expect(skills.failed[0].error).toContain(`${RUN}_profile_`);
+    expect(skills.skipped).toEqual([{ id: missing, reason: "not found" }]);
+    created.splice(created.findIndex((c) => c.id === skillIds[3]), 1);
+
+    // activeSkills come back in a different order on each read; the confirm must still match.
+    const profiles = await apply("wxcc-ext-bulk", { resource: "skill-profile", operation: "delete", ids: profileIds });
+    expect(profiles, JSON.stringify(profiles)).toMatchObject({ succeededCount: 2, failedCount: 0 });
+    const rest = await apply("wxcc-ext-bulk", { resource: "skill", operation: "delete", ids: skillIds.slice(0, 3) });
+    expect(rest, JSON.stringify(rest)).toMatchObject({ succeededCount: 3, failedCount: 0 });
+    for (const id of [...profileIds, ...skillIds]) created.splice(created.findIndex((c) => c.id === id), 1);
+  }, 240_000);
+
   it("PATCHes a harmless user field and restores it", async () => {
     const users = (await call("wxcc-ext-list", { resource: "user", pageSize: 1, attributes: "id" })).json().data;
     const id = users[0].id as string;
@@ -281,7 +327,23 @@ describe.skipIf(!LIVE)("live smoke (sandbox)", () => {
     created.splice(created.findIndex((c) => c.id === copy!.id), 1);
     const gone = await call("wxcc-ext-get", { resource: "flow", id: copy!.id });
     expect(gone.isError).toBe(true);
-  }, 120_000);
+
+    // Two more copies, deleted together: flows have no native bulk endpoint.
+    const copies: string[] = [];
+    for (const n of [2, 3]) {
+      const name = `${RUN}_flow_${n}`;
+      writeFileSync(join(config.exportDir, `${name}.json`), JSON.stringify({ ...doc, name }));
+      await apply("wxcc-ext-action", { resource: "flow", action: "import", bodyFile: `${name}.json` });
+      const hit = (await call("wxcc-ext-list", { resource: "flow", query: { partialNameSearch: name } })).json().data as Array<{ id: string; name: string }>;
+      const id = hit.find((f) => f.name === name)?.id;
+      expect(id).toBeDefined();
+      copies.push(id!);
+      created.push({ resource: "flow", id: id! });
+    }
+    const bulk = await apply("wxcc-ext-bulk", { resource: "flow", operation: "delete", items: copies.map((id) => ({ id })) });
+    expect(bulk, JSON.stringify(bulk)).toMatchObject({ succeededCount: 2, failedCount: 0 });
+    for (const id of copies) created.splice(created.findIndex((c) => c.id === id), 1);
+  }, 240_000);
 
   it("reads singletons without an id", async () => {
     for (const resource of ["organization-setting", "tenant-configuration"]) {

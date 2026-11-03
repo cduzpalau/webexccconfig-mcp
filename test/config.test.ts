@@ -28,6 +28,7 @@ describe("resolveConfig", () => {
     expect(c.logDir).toBe("/home/test/.wxcc-ext/logs");
     expect(c.snapshotDir).toBe("/home/test/.wxcc-ext/snapshots");
     expect(c.exportDir).toBe("/home/test/.wxcc-ext/exports");
+    expect(c.bulkConcurrency).toBe(4);
     expect(c.deferToOfficial).not.toContain("flow");
     expect(c.audio).toEqual({
       voice: undefined,
@@ -103,6 +104,7 @@ describe("resolveConfig", () => {
     expect(() => resolveConfig({ region: "us1", org_id: ORG, colour: "red" }, noEnv)).toThrow(/invalid config/);
     expect(() => resolveConfig({ region: "us1", org_id: ORG, mode: "yolo" }, noEnv)).toThrow(/mode/);
     expect(() => resolveConfig({ region: "us1", org_id: ORG, toolsets: ["nope"] }, noEnv)).toThrow(/toolsets\.0/);
+    expect(() => resolveConfig({ region: "us1", org_id: ORG, bulk_concurrency: 11 }, noEnv)).toThrow(/bulk_concurrency/);
     expect(() => resolveConfig({ region: "us1", org_id: ORG, audio: { sample_rate: -1 } }, noEnv)).toThrow(
       /audio\.sample_rate/,
     );

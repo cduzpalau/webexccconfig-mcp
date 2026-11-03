@@ -33,6 +33,8 @@ export interface ResourceOverride {
   queryEnums?: Record<string, string[]>;
   /** Query values sent when the caller gives none, keyed by op ("delete", "view:export"). */
   sendDefaults?: Record<string, Record<string, string>>;
+  /** Minimum request timeouts in ms for slow ops, keyed like sendDefaults. */
+  timeoutMs?: Record<string, number>;
 }
 
 /**
@@ -116,7 +118,8 @@ export const RESOURCES: ResourceOverride[] = [
     description:
       "Flows and subflows built in Flow Designer. This server lists, reads, exports, imports, unlocks and deletes " +
       "them; pass query flowType: SUBFLOW for subflows (default FLOW). Export a flow before deleting it: deletes " +
-      "are permanent.",
+      "are permanent. There is no references view: a refused delete names the flows, subflows and entry points " +
+      'that still use the flow, and wxcc-ext-list entry-point with filter flowId=="<id>" finds entry points.',
     idParam: "flowId",
     operations: [
       `GET ${FLOWS}/flows`,
@@ -128,6 +131,8 @@ export const RESOURCES: ResourceOverride[] = [
     ],
     queryEnums: { flowType: ["FLOW", "SUBFLOW"], force: ["yes", "no"] },
     sendDefaults: { list: { includePagination: "true" }, delete: { skipRsEPCheck: "false" } },
+    // Deleting a published flow often takes 15-35 s.
+    timeoutMs: { delete: 90_000 },
   },
   {
     key: "global-variable",

@@ -94,9 +94,25 @@ Every write goes through the same steps:
 4. **apply**: requires the hash. The plan is rebuilt from a fresh read, so a changed `version`
    (stale) or changed arguments produce a different hash and the write is rejected. A record without a
    `version` is pinned by `lastUpdatedTime` plus a content hash, because the timestamp has one-second
-   resolution. Otherwise the
+   resolution. The hash puts array elements in a fixed order first: the API returns some arrays
+   (`activeSkills`, `loginVoiceOptions`) in a different order on every read. Otherwise the
    before-state is snapshotted and the request goes through `client.ts`.
 5. **log**: appends a line to the operation log.
+
+**Deletes** (`src/tools/delete.ts`) add two steps to apply:
+- A **412** is rebuilt to name the referring records. They come from the error body (the Flows API lists
+  dependent flows, subflows and entry points there) or, when the body only gives entity types, from the
+  resource's references view.
+- A **timed-out DELETE** is re-checked: the record is read again after 2, 7 and 17 s, and a 404 counts as
+  deleted. Ops can carry a longer timeout from the registry (`timeoutMs`, flow delete: 90 s).
+
+**Bulk delete** (`wxcc-ext-bulk` `operation: "delete"`) runs this single-record delete over up to 50 ids,
+with `bulk_concurrency` in flight. It does not use the native `/bulk` endpoint. Flows have none, and on some
+resources a native batch fails as a whole when one item is in use. The dry-run reads every record and skips
+missing ids and system defaults (`systemDefault: true`). The hash pins every record's state. Apply re-reads,
+then snapshots and deletes each record and collects per-record results; one failure does not stop the
+others. Clients that send a progress token get one notification per record, and cancellation stops records
+not yet started.
 
 The **operation log** records every operation, reads included. It is a set of daily text files,
 `~/.wxcc-ext/logs/wxcc-ext-YYYY-MM-DD.log`, with one timestamped JSON object per line, so it is

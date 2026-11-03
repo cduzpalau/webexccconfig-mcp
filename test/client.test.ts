@@ -250,6 +250,41 @@ describe("error mapping", () => {
     expect(err.message).toMatch(/and 3 more/);
   });
 
+  it("412 from the Configuration API names the referring entity types", async () => {
+    // Live shape (sandbox, Nov 2026): no message[], the types in error.referencedEntities.
+    const err = await errorFor(
+      jsonResponse(412, {
+        trackingId: "ccconfig_abc",
+        error: { key: "412", reason: "Entity with id s1 is referred in other entities.", referencedEntities: ["skill-profile"] },
+      }),
+    );
+    expect(err.message).toBe(
+      "in use by other entities (skill-profile): Entity with id s1 is referred in other entities. (trackingId: ccconfig_abc)",
+    );
+    expect(err.referencedEntities).toEqual(["skill-profile"]);
+  });
+
+  it("412 from the Flows API lists dependent flows, subflows and entry points", async () => {
+    // Live shape (sandbox, Nov 2026): a flow referenced by an entry point.
+    const err = await errorFor(
+      jsonResponse(412, {
+        dependentEPsAndRSs: [],
+        errorCode: 412,
+        errorMessage: "Flow f1 of type FLOW in org o has dependent flows: List(), subflows: List(), ...",
+        dependentSubflows: ["Sub A"],
+        dependentRcs: [{ default: false, id: "ep1", name: "Sales EP" }],
+        dependentFlows: [{ id: "f9", name: "Main" }],
+      }),
+    );
+    expect(err.message).toBe("in use by other entities: flow Main (f9), subflow Sub A, entry point Sales EP (ep1)");
+    expect(err.references).toHaveLength(3);
+  });
+
+  it("uses errorMessage from Flows API errors", async () => {
+    const err = await errorFor(jsonResponse(400, { errorCode: 400, errorMessage: "flow is locked" }));
+    expect(err.message).toBe("bad request: flow is locked");
+  });
+
   it("429 reports Retry-After in seconds", async () => {
     const err = await errorFor(jsonResponse(429, {}, { "retry-after": "7" }));
     expect(err.message).toBe("rate limited: retry after 7s");
@@ -276,6 +311,13 @@ describe("error mapping", () => {
     await expect(slow.request({ method: "GET", path: "/organization/{orgid}/v2/team" })).rejects.toThrow(
       /request timed out after 30000ms/,
     );
+    const err = await slow.request({ method: "DELETE", path: "/organization/{orgid}/team/{id}", pathParams: { id: "t" }, timeoutMs: 90_000 }).catch((e) => e);
+    expect(err).toBeInstanceOf(WxccClientError);
+    expect(err.timedOut).toBe(true);
+    expect(err.message).toMatch(/timed out after 90000ms/);
+    // A per-request timeout only raises the configured one.
+    const low = await slow.request({ method: "GET", path: "/organization/{orgid}/v2/team", timeoutMs: 1 }).catch((e) => e);
+    expect(low.message).toMatch(/after 30000ms/);
   });
 });
 

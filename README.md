@@ -1,6 +1,6 @@
 # webexccconfig-mcp
 
-**Version 2.1.0** · [Changelog](#changelog)
+**Version 2.2.0** · [Changelog](#changelog)
 
 > [!WARNING]
 > **Unsupported. Use at your own risk.**
@@ -105,8 +105,8 @@ your other MCP server should own.
 If you leave `defer_to_official` out, the default list applies: `entry-point`, `business-hours`, `dial-plan`,
 `dial-number`. Set `defer_to_official: []` to defer nothing, or list exactly what you want deferred.
 
-See `wxcc-ext.example.yaml` for every option: log, snapshot and export folders, request timeout, response size
-cap and audio settings.
+See `wxcc-ext.example.yaml` for every option: log, snapshot and export folders, request timeout, bulk delete
+concurrency, response size cap and audio settings.
 
 ## Connect a client (side by side with Cisco's server)
 Both servers can be enabled at once. This server's tools are all prefixed `wxcc-ext-`, so names never clash.
@@ -207,7 +207,7 @@ delete. To leave flows entirely to the official server, add `flow` to `defer_to_
 | `wxcc-ext-create` | read-write | Create a record (`body`, or `bodyFile` to read it from a local `.json` file). Audio, greeting and channel resources also take `file`. |
 | `wxcc-ext-update` | read-write | Change fields (`changes`). Uses PATCH where the API has it, otherwise reads, merges and PUTs. Lists are replaced whole. |
 | `wxcc-ext-delete` | read-write | Delete a record by id. `query` takes the delete's query params (e.g. `flowType`, `force`). |
-| `wxcc-ext-bulk` | read-write | Save (create or update) or delete many records in one request, or `operation: "patch"` for partial items. Per-item results. |
+| `wxcc-ext-bulk` | read-write | Many records at once. `save` (default): one native bulk request that creates, updates or deletes items. `patch`: partial items. `delete`: up to 50 `ids`, deleted one by one, with per-record results. |
 | `wxcc-ext-action` | read-write | Named non-CRUD operations such as `purge-inactive`, `reassign-agents`, `reskill`, `delete-reference`, or flow `import` and `unlock`. `bodyFile` reads the body from a local `.json` file. `fetch-*` actions only read and run at once. |
 
 Names are flexible. Keys, aliases (`queue`, `csq`, `cad-variable`), plurals and any case all resolve. Unknown
@@ -229,7 +229,33 @@ Writes are refused if the log or the snapshot cannot be written. Other behaviour
 - Read-only fields (`createdTime`, `lastUpdatedTime`, and any the spec marks read-only) are stripped from merged bodies.
 - Bulk SAVE items with an `id` are merged with the current record, just like `update`.
 - Bulk adds `organizationId` to every item.
-- If other entities still use a record, delete fails with their names, e.g. `in use by other entities: skill-profile Bilingual (sp1)`.
+- If other entities still use a record, delete fails with their names, e.g.
+  `in use by other entities (skill-profile): skill-profile Bilingual (sp1)`. When the API's error only gives the
+  entity types, the server reads the record's references view to fill in the names.
+- Deleting a system default record (`systemDefault: true`, such as `Team-1`) is flagged in the dry-run: the API
+  refuses it.
+- If a DELETE times out, the server re-reads the record after 2, 7 and 17 seconds. If it is gone, the delete is
+  reported as applied with a `note`; if it still exists, the error says the delete may still finish.
+- The confirmation hash ignores the order of array elements. The API returns some arrays (`activeSkills`,
+  `loginVoiceOptions`, …) in a different order on every read.
+
+### Deleting many records
+`wxcc-ext-bulk` with `operation: "delete"` deletes records one at a time through the single-record delete. It
+works for every resource that has a delete, including flows, which have no bulk endpoint:
+```json
+{ "resource": "team", "operation": "delete", "ids": ["t1", "t2", "t3"] }
+```
+- **Dry-run:** reads every record and lists what will be deleted. Ids that do not exist and system defaults are
+  listed under `skipped` and never sent.
+- **Apply:** snapshots each record, then deletes it, with `bulk_concurrency` requests in flight (default 4). One
+  failure does not stop the others. The result has `succeeded`, `failed` (with `httpStatus` and the reason, such
+  as the names of referring entities) and `skipped`.
+- **Limits:** up to 50 ids per call; split longer lists into several calls. `query` applies to every DELETE (e.g.
+  `{ flowType: "SUBFLOW" }`). Clients that send a progress token get a progress notification per record.
+- `items: [{ "id": "t1" }]` also works, and the native bulk request still takes `{ "action": "DELETE", "id": "t1" }`
+  without an `item`. The native request's per-item handling varies by resource: skills report each item (207), but
+  some resources refuse the whole batch when one item is in use. Use `operation: "delete"` when you need to know
+  which records failed.
 
 ## Flows: list, export, import, unlock, delete
 The `flow` resource (toolset `flow`) covers flows and subflows built in Flow Designer. It only has the
@@ -244,6 +270,8 @@ operations Cisco's official server lacks; drafts, save, patch, validate, publish
 | Import from a file | `wxcc-ext-action` `{ resource: "flow", action: "import", bodyFile: "main-ivr.json" }` |
 | Unlock (so it can be edited or deleted) | `wxcc-ext-action` `{ resource: "flow", action: "unlock", id }` |
 | Delete | `wxcc-ext-delete` `{ resource: "flow", id }` |
+| Delete many | `wxcc-ext-bulk` `{ resource: "flow", operation: "delete", ids: [...] }` |
+| Entry points using a flow | `wxcc-ext-list` `{ resource: "entry-point", filter: "flowId==\"<id>\"" }` |
 
 **Subflows.** Every flow operation takes `query: { flowType: "SUBFLOW" }`. The default is `FLOW`.
 
@@ -272,6 +300,13 @@ the current draft.
   associations before deleting. The API's own default skips that check. Pass `query: { skipRsEPCheck: true }`
   to skip it.
 - `query: { force: "yes" }` deletes a flow even if other entities still reference it.
+- A refused delete names what still uses the flow, from the API's error: dependent flows, subflows, and entry
+  points or routing strategies. There is no references endpoint for flows, so this is also the only way to see
+  which flows call a subflow. Entry points can be found up front with the `flowId` filter above (unless
+  `entry-point` is deferred).
+- Deleting a published flow can take 15 to 35 seconds, so flow deletes wait up to 90 seconds (or
+  `request_timeout_ms`, if higher). A delete that still times out is re-checked, as described under
+  [How writes work](#how-writes-work).
 
 **Paths and scopes.** Flows use the same regional gateway as the configuration API
 (`https://api.wxcc-<region>.cisco.com`), under `/{orgId}/project/5e5c9ad6d61f870d6d778c1b/…`. Cisco documents that
@@ -302,7 +337,8 @@ That includes reads, dry-runs, applies and input errors.
 - **Format:** one JSON object per line.
 - **Fields:** `ts`, `tool`, `phase` (`local`/`read`/`dry-run`/`apply`), `resource`, `id`, `op`, `method`, `path`,
   `status`, `httpStatus`, `trackingId`, `durationMs`, `error`, `changedFields`, `snapshot`, `file` (local file
-  written by `saveTo` or read by `bodyFile`).
+  written by `saveTo` or read by `bodyFile`), `count` (records in a bulk delete) and `note` (e.g. a timed-out
+  delete confirmed by a follow-up read).
 - **Never logged:** the token and audio bytes.
 
 ```bash
@@ -313,7 +349,8 @@ grep -h 'ccconfig_<trackingId>' ~/.wxcc-ext/logs/*.log                  # find a
 ```
 
 **Snapshots.** Applied writes save the record's previous state to
-`~/.wxcc-ext/snapshots/<resource>/<id>/<timestamp>.json`. Bulk writes save one file under `<resource>/bulk/`.
+`~/.wxcc-ext/snapshots/<resource>/<id>/<timestamp>.json`. Native bulk requests save one file under
+`<resource>/bulk/`; `operation: "delete"` saves one file per record.
 Snapshots are never overwritten or cleaned up automatically. To roll back by hand, run `wxcc-ext-update` with
 the fields from the snapshot.
 
@@ -378,8 +415,46 @@ Design notes are in `docs/architecture.md`; the build history and the API findin
 | Write tools missing | Set `mode: read-write`. |
 | `file already exists, choose another name` | `saveTo` never overwrites: pick a new file name. |
 | `duplicate: …` on flow import | A flow with that name exists: rename it in the file or pass `query: { overwrite: true }`. |
+| `in use by other entities …` | Remove the named references first, or check `view: "references"`. For flows, the error lists the dependents. |
+| `request timed out … the record still exists` | The API may still finish the delete. Check with `wxcc-ext-get` before retrying, or raise `request_timeout_ms`. |
+| `at most 50 ids per call` | Split the list over several `wxcc-ext-bulk` calls. |
 
 ## Changelog
+
+### 2.2.0 (2026-11-02)
+Improvements from a cleanup of about 500 stale records on a production tenant, each one checked against the
+sandbox before the fix.
+
+**Added**
+- **`operation: "delete"` on `wxcc-ext-bulk`:** deletes up to 50 `ids` one at a time with bounded concurrency,
+  for every resource with a delete, including flows. Each record is snapshotted first. Results list `succeeded`,
+  `failed` (with the reason) and `skipped`, and one failure does not stop the others. See
+  [Deleting many records](#deleting-many-records).
+- **Skipped before sending:** the bulk delete dry-run skips ids that do not exist and system default records.
+  `wxcc-ext-delete` warns about a system default in its dry-run.
+- **Refused deletes name the referring records.** Flow deletes list dependent flows, subflows and entry points from
+  the API's error. Configuration deletes whose error only gives entity types are filled in from the references
+  view.
+- **Timed-out deletes are verified.** The server re-reads the record, and a record that is gone counts as
+  deleted (with a `note`).
+- **Progress notifications** for bulk deletes, for clients that send a progress token.
+- **`bulk_concurrency` config setting** (1 to 10, default 4).
+
+**Changed**
+- **Flow deletes** wait up to 90 seconds instead of 30.
+- **Snapshots** are written asynchronously.
+- **Operation log:** new `count` and `note` fields.
+- **`query` parameters** are typed loosely in the tool schema. The server still checks names, types and allowed
+  values against the operation, so behaviour is unchanged.
+
+**Fixed**
+- **Confirm always failed on some resources.** Deletes, updates and bulk requests on records whose arrays come
+  back in a varying order (skill profile `activeSkills`, desktop profile `loginVoiceOptions`) could never be
+  confirmed: the hash covered the arrays' order, which changes on every read. The hash now ignores array order.
+- **Bulk DELETE items needed a dummy `item: {}`.** Items now take `id` directly.
+- **Flow delete errors said only "check incoming references".** The Flows API uses its own error shape
+  (`errorMessage`, `dependentFlows`, …), which is now parsed. Configuration 412s now show the referring entity
+  types.
 
 ### 2.1.0 (2026-11-02)
 **Added**

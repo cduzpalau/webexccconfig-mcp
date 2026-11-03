@@ -280,6 +280,7 @@ function toRegistryOperation(
   for (const param of Object.keys(sendDefaults ?? {})) {
     if (!qp.some((p) => p.name === param)) throw new Error(`${override.key} ${opKey}: sendDefaults names unknown query param ${param}`);
   }
+  const timeoutMs = override.timeoutMs?.[opKey];
   return {
     kind,
     ...(name ? { name } : {}),
@@ -289,6 +290,7 @@ function toRegistryOperation(
     pathParams: [...path.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]!).filter((p) => p !== "orgid"),
     queryParams: qp,
     ...(sendDefaults ? { sendDefaults } : {}),
+    ...(timeoutMs ? { timeoutMs } : {}),
     hasBody: body !== undefined,
     ...(body !== undefined ? { bodyEncoding: hasBinary(body) ? "multipart" : "json" } : {}),
     ...(hasBinary(body) ? { multipartParts: multipartParts(source, body) } : {}),

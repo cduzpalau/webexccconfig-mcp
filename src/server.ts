@@ -31,6 +31,8 @@ export interface ServerDeps {
   registry?: readonly RegistryEntry[];
   /** Defaults to ffmpeg/TTS-based processing from config.audio. */
   files?: FileProcessor;
+  /** Defaults to a real timer; tests pass an instant one. */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 export function buildServer(deps: ServerDeps): McpServer {
@@ -46,6 +48,7 @@ export function buildServer(deps: ServerDeps): McpServer {
     snapshots: new SnapshotStore(deps.config.snapshotDir),
     pending: new PendingPlans(),
     files: deps.files ?? createFileProcessor(deps.config.audio),
+    sleep: deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
   };
   registerReadTools(server, ctx);
   if (deps.config.mode === "read-write") registerWriteTools(server, ctx);

@@ -333,7 +333,7 @@ describe("wxcc-ext-bulk", () => {
     const a = record("/auxiliary-code/a1", { id: "a1", version: 1, name: "Lunch", active: true });
     h = await startServer({ config: rw, routes: [a.route] });
     expect((await h.call("wxcc-ext-bulk", { resource: "auxiliary-code", operation: "patch", items: [{ item: { active: false } }] })).text).toBe(
-      "item 1: patch items need item.id",
+      "item 1: patch items need an id",
     );
     const dry = (await h.call("wxcc-ext-bulk", { resource: "auxiliary-code", operation: "patch", items: [{ item: { id: "a1", active: false } }] })).json();
     expect(dry.request).toBe(`PATCH /organization/${ORG}/auxiliary-code/bulk`);
@@ -343,7 +343,7 @@ describe("wxcc-ext-bulk", () => {
   it("refuses bulk on resources without it", async () => {
     h = await startServer({ config: rw });
     expect((await h.call("wxcc-ext-bulk", { resource: "address-book", items: [{ item: {} }] })).text).toBe(
-      "address-book does not support bulk save",
+      "address-book does not support bulk save; to delete many records use operation delete with ids",
     );
   });
 });

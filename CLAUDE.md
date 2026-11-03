@@ -30,7 +30,8 @@ Design details: see docs/architecture.md. Current work plan: see docs/refactor-p
 - src/registry/          GENERATED resource registry. Do not hand-edit; run `npm run gen:registry`
 - src/registry-types.ts  hand-written types for the generated registry
 - src/tools/             the generic tools (list_resource_types, describe_resource, list, get,
-                         create, update, delete, bulk, action)
+                         create, update, delete, bulk, action); delete.ts holds the shared delete
+                         step (412 names, timeout re-check) and bulk delete
 - src/write/             snapshot, merge, diff, operation log, audio conversion, local JSON files
                          (saveTo / bodyFile; never overwrite)
 - scripts/fetch-spec.ts  snapshots the OpenAPI embedded in developer.webex.com into

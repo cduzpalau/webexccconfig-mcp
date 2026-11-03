@@ -63,6 +63,8 @@ export interface AppConfig {
   /** Where relative saveTo / bodyFile paths resolve (flow exports and imports). */
   exportDir: string;
   requestTimeoutMs: number;
+  /** Parallel requests when wxcc-ext-bulk deletes records one by one. */
+  bulkConcurrency: number;
   /** Tool responses larger than this are trimmed, with a hint to page or select attributes. */
   maxResponseChars: number;
   audio: AudioConfig;
@@ -94,6 +96,7 @@ const fileSchema = z
     snapshot_dir: z.string().min(1).optional(),
     export_dir: z.string().min(1).optional(),
     request_timeout_ms: z.number().int().positive().max(300_000).optional(),
+    bulk_concurrency: z.number().int().min(1).max(10).optional(),
     max_response_chars: z.number().int().min(2_000).max(1_000_000).optional(),
     audio: z
       .object({
@@ -200,6 +203,7 @@ export function resolveConfig(raw: unknown, opts: LoadOptions & { configPath?: s
     snapshotDir: expandHome(file.snapshot_dir ?? "~/.wxcc-ext/snapshots", home),
     exportDir: expandHome(file.export_dir ?? "~/.wxcc-ext/exports", home),
     requestTimeoutMs: file.request_timeout_ms ?? 30_000,
+    bulkConcurrency: file.bulk_concurrency ?? 4,
     maxResponseChars: file.max_response_chars ?? 50_000,
     audio: {
       voice: audio.voice,

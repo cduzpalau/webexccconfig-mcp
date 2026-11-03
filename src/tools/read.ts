@@ -90,7 +90,7 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
     {
       description:
         "Start here. Lists the Webex Contact Center configuration resource types this server manages " +
-        "(queues, teams, skills, users, desktop profiles, sites, ...), with their operations, views and actions.",
+        "(queues, teams, skills, users, flows, ...), with their operations, views and actions.",
       inputSchema: { toolset: z.enum(TOOLSETS).optional().describe("Only this toolset") },
       annotations: READ_ANNOTATIONS,
     },

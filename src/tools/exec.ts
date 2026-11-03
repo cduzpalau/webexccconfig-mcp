@@ -2,7 +2,8 @@
  * Shared plumbing for the generic tools: request building from registry ops, the API call with
  * operation logging, and turning results and errors into short MCP tool results.
  */
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
+import type { CallToolResult, ServerNotification, ServerRequest } from "@modelcontextprotocol/sdk/types.js";
 import { WxccApiError, WxccClientError, type ApiResponse, type QueryValue, type WxccClient } from "../client.js";
 import type { AppConfig } from "../config.js";
 import type { QueryParam, RegistryEntry, RegistryOperation } from "../registry-types.js";
@@ -20,9 +21,15 @@ export interface ToolContext {
   snapshots: SnapshotStore;
   pending: PendingPlans;
   files: FileProcessor;
+  /** Waits before re-checking a record after a timed-out delete; replaceable in tests. */
+  sleep: (ms: number) => Promise<void>;
 }
 
-export type QueryInput = Record<string, string | number | boolean | string[]>;
+/** Per-call MCP context: progress token, cancellation signal, notifications. */
+export type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
+
+/** Caller query values, validated and coerced by buildQuery. */
+export type QueryInput = Record<string, unknown>;
 
 export function opLabel(op: RegistryOperation): string {
   return op.name ? `${op.kind}:${op.name}` : op.kind;
@@ -168,6 +175,7 @@ export async function callApi(ctx: ToolContext, spec: CallSpec): Promise<ApiResp
       query: spec.query,
       json: spec.json,
       form: spec.form,
+      timeoutMs: op.timeoutMs,
     });
     ctx.oplog.record({
       ...base,
@@ -202,11 +210,11 @@ function loggedByCallApi(err: unknown): boolean {
 export function handler<A extends object>(
   ctx: ToolContext,
   tool: string,
-  fn: (args: A) => Promise<CallToolResult>,
-): (args: A) => Promise<CallToolResult> {
-  return async (args) => {
+  fn: (args: A, extra?: ToolExtra) => Promise<CallToolResult>,
+): (args: A, extra?: ToolExtra) => Promise<CallToolResult> {
+  return async (args, extra) => {
     try {
-      return await fn(args);
+      return await fn(args, extra);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (!loggedByCallApi(err)) {
@@ -279,6 +287,34 @@ export function shapeResult(resource: string, input: unknown, maxChars: number, 
       { type: "text", text: `[truncated at ${maxChars} of ${text.length} characters; ${hint}]` },
     ],
   };
+}
+
+/** ` "Name"` for messages, or "" when the record has no name. */
+export function label(record: unknown): string {
+  if (!isObject(record)) return "";
+  return typeof record.name === "string" ? ` "${record.name}"` : "";
+}
+
+/**
+ * Reads the current record through the resource's get op (logged as a read). `query` carries the
+ * caller's query values that the get op also takes (e.g. flowType: SUBFLOW).
+ */
+export async function readCurrent(
+  ctx: ToolContext,
+  tool: string,
+  entry: RegistryEntry,
+  id: string,
+  parentId: string | undefined,
+  query?: QueryInput,
+): Promise<Record<string, unknown> | undefined> {
+  const getOp = entry.operations.find((o) => o.kind === "get");
+  if (!getOp) return undefined;
+  const pathParams = buildPathParams(entry, getOp, { id, parentId });
+  const getQuery = buildQuery(entry, getOp, sharedQuery(getOp, query));
+  const res = await callApi(ctx, { tool, phase: "read", entry, op: getOp, id, pathParams, query: getQuery });
+  const data = stripLinks(res.data);
+  if (!isObject(data)) throw new ToolError(`${entry.key} ${id}: unexpected response when reading the current record`);
+  return data;
 }
 
 /** Drops HAL navigation (`_links`, and `links` arrays of rel/href) from records: noise for the model. */

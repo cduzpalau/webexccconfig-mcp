@@ -3234,7 +3234,7 @@ export const RESOURCES: readonly RegistryEntry[] = [
   {
     "key": "flow",
     "displayName": "Flow",
-    "description": "Flows and subflows built in Flow Designer. This server lists, reads, exports, imports, unlocks and deletes them; pass query flowType: SUBFLOW for subflows (default FLOW). Export a flow before deleting it: deletes are permanent.",
+    "description": "Flows and subflows built in Flow Designer. This server lists, reads, exports, imports, unlocks and deletes them; pass query flowType: SUBFLOW for subflows (default FLOW). Export a flow before deleting it: deletes are permanent. There is no references view: a refused delete names the flows, subflows and entry points that still use the flow, and wxcc-ext-list entry-point with filter flowId==\"<id>\" finds entry points.",
     "aliases": [],
     "toolset": "flow",
     "singleton": false,
@@ -3375,6 +3375,7 @@ export const RESOURCES: readonly RegistryEntry[] = [
         "sendDefaults": {
           "skipRsEPCheck": "false"
         },
+        "timeoutMs": 90000,
         "hasBody": false,
         "paginated": false,
         "summary": "Delete a Flow or Subflow",

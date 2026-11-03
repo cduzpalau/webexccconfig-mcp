@@ -44,6 +44,8 @@ export interface RegistryOperation {
   queryParams: QueryParam[];
   /** Query values sent when the caller gives none: safer than the API's own defaults. */
   sendDefaults?: Record<string, string>;
+  /** Minimum request timeout in ms (slow ops such as flow deletes); the config value applies if higher. */
+  timeoutMs?: number;
   hasBody: boolean;
   bodyEncoding?: "json" | "multipart";
   /** For multipart bodies: the binary part and the JSON part carrying the record's fields. */
